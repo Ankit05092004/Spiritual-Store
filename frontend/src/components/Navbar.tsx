@@ -134,7 +134,7 @@ export default function Navbar() {
               </span>
             </div>
             <span className="font-serif text-xl font-bold text-foreground tracking-tight hidden lg:block">
-              ASTRA<span className="text-primary">SPIRITUAL</span>
+              MAHADEV<span className="text-primary">ASTRO</span>
             </span>
           </Link>
 
@@ -311,7 +311,7 @@ export default function Navbar() {
                   </span>
                 </div>
                 <span className="font-serif text-lg font-bold text-foreground tracking-tight">
-                  ASTRA<span className="text-primary">SPIRITUAL</span>
+                  MAHADEV<span className="text-primary">ASTRO</span>
                 </span>
               </Link>
               <Button
