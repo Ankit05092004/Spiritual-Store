@@ -444,7 +444,7 @@ export default function Navbar() {
               </SignedOut>
               <div className="text-center mt-6">
                 <p className="text-xs text-muted-foreground">
-                  © {new Date().getFullYear()} AstraSpiritual.
+                  © {new Date().getFullYear()} MahadevAstro.
                 </p>
                 <p className="text-[10px] text-muted-foreground/60 mt-1">
                   All rights reserved.

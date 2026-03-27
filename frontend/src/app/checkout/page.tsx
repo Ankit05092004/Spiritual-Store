@@ -119,7 +119,7 @@ export default function CheckoutPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
         amount: amount,
         currency: "INR",
-        name: "AstraSpiritual",
+        name: "MahadevAstro",
         description: "Purchase of spiritual products",
         order_id: orderId,
         handler: async (response: RazorpayResponse) => {

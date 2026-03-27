@@ -45,7 +45,7 @@ const reports = [
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Astrological Reports | AstraSpiritual",
+  title: "Astrological Reports | MahadevAstro",
   description:
     "Get detailed Vedic astrology prediction reports for 1, 3, or 5 years. Understand your future and make informed life decisions.",
 };
