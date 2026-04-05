@@ -66,9 +66,21 @@ export async function POST(req: Request) {
           return fallbackOrder ? [fallbackOrder] : [];
         });
 
-      if (!newOrder || !newOrder[0]) {
+      if (!newOrder) {
+        console.error("Failed to create or load order. Details:", {
+          orderId,
+          userId,
+          reportType,
+          verificationStatus: verification.order_status,
+        });
         throw new Error("Failed to create or load order");
       }
+
+      console.log("Order created/loaded successfully:", {
+        orderId: newOrder.id,
+        cashfreeOrderId: orderId,
+        userId,
+      });
 
       // 2. Grant report entitlement
       await db
@@ -76,7 +88,7 @@ export async function POST(req: Request) {
         .values({
           userId,
           reportType,
-          orderId: newOrder[0].id,
+          orderId: newOrder.id,
         })
         .onConflictDoNothing({
           target: [reportEntitlements.userId, reportEntitlements.reportType],
@@ -84,14 +96,14 @@ export async function POST(req: Request) {
 
       const existingPayment = await db.query.payments.findFirst({
         where: and(
-          eq(payments.orderId, newOrder[0].id),
+          eq(payments.orderId, newOrder.id),
           eq(payments.cashfreeOrderId, verification.order_id),
         ),
       });
 
       if (!existingPayment) {
         await db.insert(payments).values({
-          orderId: newOrder[0].id,
+          orderId: newOrder.id,
           cashfreeOrderId: verification.order_id,
           amount: verification.order_amount.toString(),
           currency: verification.order_currency,
@@ -107,7 +119,7 @@ export async function POST(req: Request) {
       await db
         .update(orders)
         .set({ status: "paid" })
-        .where(eq(orders.id, newOrder[0].id));
+        .where(eq(orders.id, newOrder.id));
 
       return NextResponse.json({ success: true, verified: true });
     } else {

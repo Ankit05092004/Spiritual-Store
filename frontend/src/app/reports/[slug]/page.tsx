@@ -115,6 +115,7 @@ export default function ReportDetailPage() {
     useState<AstrologyReport | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
+  const [showNewReportForm, setShowNewReportForm] = useState(false);
   const [birthCharts, setBirthCharts] = useState<{
     rasi: string | null;
     navamsa: string | null;
@@ -403,11 +404,16 @@ export default function ReportDetailPage() {
       setGeneratedReport(data.report);
       setReportId(data.reportId);
       setFromCache(data.fromCache);
+      setShowNewReportForm(false); // Hide form after generating
       toast.success(
         data.fromCache
           ? "Report loaded from cache!"
           : "Report generated successfully!",
       );
+      // Scroll to report
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 100);
     } catch (error) {
       console.error("Error generating report:", error);
       toast.error("Something went wrong while generating the report.");
@@ -436,6 +442,25 @@ export default function ReportDetailPage() {
       };
       printReport(extendedReport);
     }
+  };
+
+  const handleGenerateNewReport = () => {
+    setShowNewReportForm(true);
+    // Clear form data for new entry
+    setFormData({
+      name: "",
+      phone: "",
+      date: "",
+      time: "",
+      location: "",
+    });
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelNewReport = () => {
+    setShowNewReportForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -505,10 +530,20 @@ export default function ReportDetailPage() {
                       • Years: {generatedReport.years.join(", ")}
                     </p>
                   </div>
-                  <Button onClick={handleDownloadPDF} className="gap-2">
-                    <span className="material-symbols-outlined">download</span>
-                    Download PDF
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button 
+                      onClick={handleGenerateNewReport} 
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <span className="material-symbols-outlined">add</span>
+                      Generate New Report
+                    </Button>
+                    <Button onClick={handleDownloadPDF} className="gap-2">
+                      <span className="material-symbols-outlined">download</span>
+                      Download PDF
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Yearly Reports */}
@@ -613,14 +648,26 @@ export default function ReportDetailPage() {
       )}
 
       {/* Form Section */}
-      {!generatedReport && (
+      {(!generatedReport || showNewReportForm) && (
         <section className="py-16 px-6">
           <div className="max-w-2xl mx-auto">
             <Card className="border-primary/10 shadow-2xl shadow-primary/5">
               <CardContent className="p-8 space-y-6">
                 <div className="text-center mb-8">
+                  {showNewReportForm && generatedReport && (
+                    <div className="mb-4">
+                      <Button
+                        onClick={handleCancelNewReport}
+                        variant="ghost"
+                        className="gap-2"
+                      >
+                        <span className="material-symbols-outlined">arrow_back</span>
+                        Back to Current Report
+                      </Button>
+                    </div>
+                  )}
                   <h2 className="text-2xl font-serif font-bold mb-2">
-                    Generate Your Report
+                    {showNewReportForm ? "Generate New Report" : "Generate Your Report"}
                   </h2>
                   <p className="text-muted-foreground text-sm">
                     Enter your birth details for personalized predictions

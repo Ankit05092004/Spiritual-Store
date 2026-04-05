@@ -559,6 +559,7 @@ export const reportEntitlementsRelations = relations(
 // ============================================
 export interface AstrologyReportBirthData {
   dob: string;
+  name?: string; // Optional name field
   sunSign: string;
   moonSign: string;
   ascendant: string;

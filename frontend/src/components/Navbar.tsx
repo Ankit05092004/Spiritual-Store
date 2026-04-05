@@ -222,6 +222,17 @@ export default function Navbar() {
                 </Button>
               </Link>
 
+              <Link href="/my-reports" className="hidden sm:block">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="My Reports"
+                  className="rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                >
+                  <span className="material-symbols-outlined">description</span>
+                </Button>
+              </Link>
+
               <Link href="/orders" className="hidden sm:block">
                 <Button
                   variant="ghost"
@@ -417,6 +428,17 @@ export default function Navbar() {
                       favorite
                     </span>
                     <span className="font-medium">Wishlist</span>
+                  </Link>
+
+                  <Link
+                    href="/my-reports"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-foreground hover:bg-muted hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-muted-foreground">
+                      description
+                    </span>
+                    <span className="font-medium">My Reports</span>
                   </Link>
 
                   <Link

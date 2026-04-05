@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
         reportType: r.reportType,
         years: r.reportData.years,
         createdAt: r.createdAt,
+        name: r.birthData?.name || "Unnamed Report", // Get name from birthData
+        birthDate: r.birthData?.dob,
         // Include summary but not full data for list view
         preview: {
           duration: r.reportData.duration,
