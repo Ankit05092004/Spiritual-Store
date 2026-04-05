@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 export interface CashfreeOrderResponse {
   cf_order_id: string;
   order_id: string;
@@ -14,18 +12,16 @@ export interface CashfreeVerificationResponse {
   order_amount: number;
   order_currency: string;
   order_status: string;
-  payment_status: string;
+  payment_status: "SUCCESS" | "FAILED" | "PENDING";
 }
 
 const getCashfreeHeaders = () => {
-  const mode = process.env.CASHFREE_ENV;
   // If we're not in the "production" environment variable, use the sandbox credentials
   // Ensure your .env has CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET
-  if (
-    !process.env.CASHFREE_CLIENT_ID ||
-    !process.env.CASHFREE_CLIENT_SECRET
-  ) {
-    throw new Error("Missing Cashfree API credentials in environment variables.");
+  if (!process.env.CASHFREE_CLIENT_ID || !process.env.CASHFREE_CLIENT_SECRET) {
+    throw new Error(
+      "Missing Cashfree API credentials in environment variables.",
+    );
   }
 
   return {
@@ -55,22 +51,33 @@ export const getAppUrl = () => {
 };
 
 export const normalizeCustomerPhone = (phone: string) => {
-  if (!phone) return "9999999999";
-  // Remove all non-numeric characters
   const numeric = phone.replace(/\D/g, "");
-  // If it's empty after stripping, return a dummy
-  if (!numeric) return "9999999999";
-  
-  // If it starts with 91 and has 12 digits, strip the 91
+
   if (numeric.length === 12 && numeric.startsWith("91")) {
-    return numeric.substring(2);
+    const normalized = numeric.substring(2);
+    if (/^\d{10}$/.test(normalized)) {
+      return normalized;
+    }
   }
-  
-  // If it has standard 10 digits, it's good
-  if (numeric.length === 10) return numeric;
-  
-  // If less than 10, pad. If more, truncate
-  return numeric.padStart(10, "9").substring(0, 10);
+
+  if (/^\d{10}$/.test(numeric)) {
+    return numeric;
+  }
+
+  throw new Error("Invalid customer phone number");
+};
+
+const normalizeReturnPath = (returnPath: string) => {
+  const trimmed = returnPath.trim();
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    trimmed.includes(":")
+  ) {
+    throw new Error("Invalid return path");
+  }
+
+  return trimmed;
 };
 
 export async function createCashfreeOrder({
@@ -93,7 +100,7 @@ export async function createCashfreeOrder({
 }) {
   const url = `${getCashfreeBaseUrl()}/orders`;
   const appUrl = getAppUrl();
-  const returnUrl = `${appUrl}${returnPath}`;
+  const returnUrl = `${appUrl}${normalizeReturnPath(returnPath)}`;
 
   const payload = {
     order_id: orderId,
@@ -102,8 +109,12 @@ export async function createCashfreeOrder({
     customer_details: {
       customer_id: customerDetails.customerId,
       customer_phone: normalizeCustomerPhone(customerDetails.customerPhone),
-      customer_email: customerDetails.customerEmail || "customer@example.com",
-      customer_name: customerDetails.customerName || "Customer",
+      ...(customerDetails.customerEmail
+        ? { customer_email: customerDetails.customerEmail }
+        : {}),
+      ...(customerDetails.customerName
+        ? { customer_name: customerDetails.customerName }
+        : {}),
     },
     order_meta: {
       return_url: returnUrl,
@@ -116,36 +127,58 @@ export async function createCashfreeOrder({
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
-
   if (!response.ok) {
-    const message = data.message || JSON.stringify(data.type || data.error || data);
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      // Ignore malformed error payloads from Cashfree.
+    }
+    const message =
+      data.message || JSON.stringify(data.type || data.error || data);
     throw new Error(`Cashfree create order failed: ${message}`);
   }
 
+  const data = await response.json();
   return data as CashfreeOrderResponse;
 }
 
-export async function verifyCashfreePayment(orderId: string): Promise<CashfreeVerificationResponse> {
+export async function verifyCashfreePayment(
+  orderId: string,
+): Promise<CashfreeVerificationResponse> {
   // Direct server-to-server verification via Cashfree Payments API using order ID.
-  const url = `${getCashfreeBaseUrl()}/orders/${orderId}`;
-  
+  const url = `${getCashfreeBaseUrl()}/orders/${encodeURIComponent(orderId)}`;
+
   const response = await fetch(url, {
     method: "GET",
     headers: getCashfreeHeaders(),
   });
 
-  const data = await response.json();
-  
   if (!response.ok) {
-    throw new Error(`Payment verification failed: ${data.message || "Unknown error"}`);
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      // Ignore malformed error payloads from Cashfree.
+    }
+    throw new Error(
+      `Payment verification failed: ${data.message || "Unknown error"}`,
+    );
   }
+  const data = await response.json();
+
+  const paymentStatus =
+    data.order_status === "PAID"
+      ? "SUCCESS"
+      : data.order_status === "ACTIVE"
+        ? "PENDING"
+        : "FAILED";
 
   return {
     order_id: data.order_id,
     order_amount: data.order_amount,
     order_currency: data.order_currency,
     order_status: data.order_status,
-    payment_status: data.order_status === "PAID" ? "SUCCESS" : "FAILED",
+    payment_status: paymentStatus,
   };
 }

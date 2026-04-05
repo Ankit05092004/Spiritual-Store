@@ -20,6 +20,10 @@ import {
 } from "@/lib/astrology-reports";
 import { loadCashfreeScript } from "@/lib/cashfree-client";
 import { getReportPrice } from "@/lib/report-pricing";
+import type {
+  CashfreeCheckoutOptions,
+  CashfreeCheckoutResult,
+} from "@/types/cashfree";
 
 interface LocationSuggestion {
   displayName: string;
@@ -151,7 +155,7 @@ export default function ReportDetailPage() {
     } finally {
       setLoadingCached(false);
     }
-  }, [report?.duration, slug, paymentLock]);
+  }, [report?.duration]);
 
   useEffect(() => {
     if (isSignedIn && report) {
@@ -210,32 +214,45 @@ export default function ReportDetailPage() {
       return;
     }
 
+    if (paymentLock.current) {
+      return;
+    }
+
     if (!formData.date || !formData.time || !formData.location) {
       toast.error("Please fill in all required fields");
       return;
     }
 
+    paymentLock.current = true;
     setLoading(true);
 
     try {
       // 1. Check if user has entitlement for this report explicitly
       const entitCheck = await fetch(`/api/reports/entitlement?slug=${slug}`);
-      const entitData = await entitCheck.json();
+      if (!entitCheck.ok) {
+        throw new Error("Failed to check entitlement");
+      }
 
-      if (!entitData.hasEntitlement) {
+      const entitData = (await entitCheck.json()) as {
+        hasEntitlement?: boolean;
+      };
+
+      if (entitData.hasEntitlement !== true) {
         // User needs to pay. Load Cashfree Payment.
         const loaded = await loadCashfreeScript();
         if (!loaded) {
           toast.error("Failed to load payment gateway");
-          setLoading(false);
           return;
         }
 
-        const createOrderRes = await fetch("/api/cashfree/create-report-order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug }),
-        });
+        const createOrderRes = await fetch(
+          "/api/cashfree/create-report-order",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slug }),
+          },
+        );
 
         if (!createOrderRes.ok) {
           throw new Error("Failed to create report payment order");
@@ -248,39 +265,41 @@ export default function ReportDetailPage() {
             : "sandbox";
         const cashfree = window.Cashfree({ mode: cashfreeEnv });
 
-        const checkoutOptions = {
+        const checkoutOptions: CashfreeCheckoutOptions = {
           paymentSessionId: orderData.payment_session_id,
           redirectTarget: "_modal",
         };
 
-        cashfree.checkout(checkoutOptions).then(async (result: any) => {
-          if (result.error) {
-            toast.error("Payment was cancelled or failed");
-            setLoading(false);
-            return;
-          }
-          if (result.paymentDetails) {
-            const verifyRes = await fetch("/api/cashfree/verify-report", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ orderId: orderData.order_id, slug }),
-            });
-            if (verifyRes.ok) {
-              const verData = await verifyRes.json();
-              if (verData.verified) {
-                toast.success("Payment successful! Generating your report...");
-                await generateReportData();
-              } else {
-                toast.error("Payment verification failed");
-                setLoading(false);
-              }
+        const result: CashfreeCheckoutResult =
+          await cashfree.checkout(checkoutOptions);
+
+        if (result.error) {
+          toast.error("Payment was cancelled or failed");
+          return;
+        }
+
+        if (result.paymentDetails) {
+          const verifyRes = await fetch("/api/cashfree/verify-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: orderData.order_id, slug }),
+          });
+          if (verifyRes.ok) {
+            const verData = await verifyRes.json();
+            if (verData.verified) {
+              toast.success("Payment successful! Generating your report...");
+              await generateReportData();
             } else {
-              toast.error("Payment verification failed from server");
-              setLoading(false);
+              toast.error("Payment verification failed");
             }
+          } else {
+            toast.error("Payment verification failed from server");
           }
-        });
-        return; // Wait for modal promise
+          return;
+        }
+
+        toast.error("Payment was not completed. Please try again.");
+        return;
       }
 
       // If entitled, proceed contextually directly:
@@ -288,6 +307,8 @@ export default function ReportDetailPage() {
     } catch (error) {
       console.error("Error:", error);
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      paymentLock.current = false;
       setLoading(false);
     }
   };
@@ -737,7 +758,8 @@ export default function ReportDetailPage() {
                         <span className="material-symbols-outlined">
                           auto_awesome
                         </span>
-                        Generate {report.duration}-Year Report (₹{getReportPrice(slug).toLocaleString()})
+                        Generate {report.duration}-Year Report (₹
+                        {getReportPrice(slug).toLocaleString()})
                       </>
                     )}
                   </Button>

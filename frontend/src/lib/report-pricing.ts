@@ -29,18 +29,21 @@ export const REPORT_METADATA: Record<ReportSlug, ReportMetadata> = {
   },
 };
 
-export function slugToReportType(slug: ReportSlug | string): ReportType {
-  const metadata = REPORT_METADATA[slug as ReportSlug];
-  if (!metadata) {
+export function isReportSlug(slug: string): slug is ReportSlug {
+  return slug in REPORT_METADATA;
+}
+
+export function getReportMetadata(slug: ReportSlug | string): ReportMetadata {
+  if (!isReportSlug(slug)) {
     throw new Error(`Invalid report slug: ${slug}`);
   }
-  return metadata.type;
+  return REPORT_METADATA[slug];
+}
+
+export function slugToReportType(slug: ReportSlug | string): ReportType {
+  return getReportMetadata(slug).type;
 }
 
 export function getReportPrice(slug: ReportSlug | string): number {
-  const metadata = REPORT_METADATA[slug as ReportSlug];
-  if (!metadata) {
-    throw new Error(`Invalid report slug: ${slug}`);
-  }
-  return metadata.price;
+  return getReportMetadata(slug).price;
 }

@@ -13,6 +13,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
+const orderKindValues = ["product", "report"] as const;
+const reportTypeValues = ["1-year", "3-year", "5-year"] as const;
+
 // ============================================
 // CATEGORIES
 // ============================================
@@ -188,7 +191,9 @@ export const orders = pgTable(
     razorpayPaymentId: text("razorpay_payment_id"),
     cashfreeOrderId: text("cashfree_order_id").unique(),
     cashfreePaymentId: text("cashfree_payment_id"),
-    orderKind: text("order_kind").default("product").notNull(),
+    orderKind: text("order_kind", { enum: orderKindValues })
+      .default("product")
+      .notNull(),
     status: text("status", {
       enum: [
         "pending",
@@ -234,7 +239,7 @@ export const orders = pgTable(
     ),
     check(
       "orders_order_kind_check",
-      sql`${table.orderKind} IN ('product', 'report')`
+      sql`${table.orderKind} IN ('product', 'report')`,
     ),
   ],
 );
@@ -242,6 +247,7 @@ export const orders = pgTable(
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   orderItems: many(orderItems),
   payments: many(payments),
+  reportEntitlements: many(reportEntitlements),
   user: one(users, {
     fields: [orders.userId],
     references: [users.id],
@@ -303,7 +309,7 @@ export const payments = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orderId: uuid("order_id")
-      .references(() => orders.id)
+      .references(() => orders.id, { onDelete: "restrict" })
       .notNull(),
     razorpayPaymentId: text("razorpay_payment_id").unique(),
     razorpayOrderId: text("razorpay_order_id"),
@@ -421,6 +427,10 @@ export const coupons = pgTable(
   (table) => [
     check("coupons_usage_check", sql`${table.usedCount} >= 0`),
     check("coupons_discount_value_positive", sql`${table.discountValue} > 0`),
+    check(
+      "coupons_valid_date_range",
+      sql`${table.validFrom} IS NULL OR ${table.validUntil} IS NULL OR ${table.validFrom} <= ${table.validUntil}`,
+    ),
   ],
 );
 
@@ -485,7 +495,17 @@ export const rashiReports = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index("idx_rashi_reports_user").on(table.userId)],
+  (table) => [
+    index("idx_rashi_reports_user").on(table.userId),
+    check(
+      "rashi_reports_latitude_range",
+      sql`${table.latitude} >= -90 AND ${table.latitude} <= 90`,
+    ),
+    check(
+      "rashi_reports_longitude_range",
+      sql`${table.longitude} >= -180 AND ${table.longitude} <= 180`,
+    ),
+  ],
 );
 
 export const rashiReportsRelations = relations(rashiReports, ({ one }) => ({
@@ -503,7 +523,7 @@ export const reportEntitlements = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").notNull(),
-    reportType: text("report_type").notNull(),
+    reportType: text("report_type", { enum: reportTypeValues }).notNull(),
     orderId: uuid("order_id").references(() => orders.id, {
       onDelete: "set null",
     }),
@@ -516,10 +536,6 @@ export const reportEntitlements = pgTable(
     unique("unique_user_report_type_entitlement").on(
       table.userId,
       table.reportType,
-    ),
-    check(
-      "report_entitlements_report_type_check",
-      sql`${table.reportType} IN ('1-year', '3-year', '5-year')`
     ),
   ],
 );
@@ -644,6 +660,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   wishlistItems: many(wishlistItems),
   rashiReports: many(rashiReports),
   astrologyReports: many(astrologyReports),
+  reportEntitlements: many(reportEntitlements),
 }));
 
 // ============================================

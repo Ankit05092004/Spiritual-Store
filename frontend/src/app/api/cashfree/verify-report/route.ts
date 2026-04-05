@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { orders, payments, reportEntitlements } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { slugToReportType } from "@/lib/report-pricing";
 import { verifyCashfreePayment } from "@/lib/cashfree";
 
@@ -17,22 +18,31 @@ export async function POST(req: Request) {
     if (!orderId || !slug) {
       return NextResponse.json(
         { error: "Missing orderId or slug" },
-        { status: 400 }
+        { status: 400 },
       );
+    }
+
+    const orderRecord = await db.query.orders.findFirst({
+      where: and(
+        eq(orders.cashfreeOrderId, orderId),
+        eq(orders.userId, userId),
+      ),
+    });
+
+    if (!orderRecord) {
+      return NextResponse.json({ error: "Order not found" }, { status: 403 });
     }
 
     const reportType = slugToReportType(slug);
     const verification = await verifyCashfreePayment(orderId);
 
     if (verification.payment_status === "SUCCESS") {
-      // Create entitlement sequentially (Neon HTTP does not support transactions)
-      // 1. Create order summary
       const [newOrder] = await db
         .insert(orders)
         .values({
           userId,
           cashfreeOrderId: orderId,
-          status: "paid",
+          status: "pending",
           subtotal: verification.order_amount.toString(),
           total: verification.order_amount.toString(),
           shippingAddress: {
@@ -53,37 +63,73 @@ export async function POST(req: Request) {
           ],
           orderKind: "report",
         })
-        .returning();
+        .onConflictDoNothing({ target: [orders.cashfreeOrderId] })
+        .returning()
+        .then(async (rows) => {
+          if (rows[0]) {
+            return rows;
+          }
+
+          const fallbackOrder = await db.query.orders.findFirst({
+            where: eq(orders.cashfreeOrderId, orderId),
+          });
+
+          return fallbackOrder ? [fallbackOrder] : [];
+        });
+
+      if (!newOrder) {
+        throw new Error("Failed to create or load order");
+      }
 
       // 2. Grant report entitlement
-      await db.insert(reportEntitlements).values({
-        userId,
-        reportType,
-        orderId: newOrder.id,
-      }).onConflictDoNothing({ target: [reportEntitlements.userId, reportEntitlements.reportType] }); // Idempotent support
+      await db
+        .insert(reportEntitlements)
+        .values({
+          userId,
+          reportType,
+          orderId: newOrder.id,
+        })
+        .onConflictDoNothing({
+          target: [reportEntitlements.userId, reportEntitlements.reportType],
+        }); // Idempotent support
 
-      // 3. Record payment
-      await db.insert(payments).values({
-        orderId: newOrder.id,
-        amount: verification.order_amount.toString(),
-        currency: verification.order_currency,
-        status: "captured",
-        method: "cashfree",
-        metadata: {
-          cashfree_order_id: verification.order_id,
-          raw_status: verification.order_status,
-        },
+      const existingPayment = await db.query.payments.findFirst({
+        where: and(
+          eq(payments.orderId, newOrder.id),
+          eq(payments.cashfreeOrderId, verification.order_id),
+        ),
       });
+
+      if (!existingPayment) {
+        await db.insert(payments).values({
+          orderId: newOrder.id,
+          cashfreeOrderId: verification.order_id,
+          amount: verification.order_amount.toString(),
+          currency: verification.order_currency,
+          status: "captured",
+          method: "cashfree",
+          metadata: {
+            cashfree_order_id: verification.order_id,
+            raw_status: verification.order_status,
+          },
+        });
+      }
+
+      await db
+        .update(orders)
+        .set({ status: "paid" })
+        .where(eq(orders.id, newOrder.id));
 
       return NextResponse.json({ success: true, verified: true });
     } else {
-      return NextResponse.json({ success: false, verified: false, status: verification.order_status });
+      return NextResponse.json({
+        success: false,
+        verified: false,
+        status: verification.order_status,
+      });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Report payment verification error:", error);
-    return NextResponse.json(
-      { error: "Verification failed", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
   }
 }

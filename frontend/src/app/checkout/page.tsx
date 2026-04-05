@@ -11,12 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useCartStore } from "@/lib/stores/cart-store";
 import { loadCashfreeScript } from "@/lib/cashfree-client";
-
-declare global {
-  interface Window {
-    Cashfree: any;
-  }
-}
+import type {
+  CashfreeCheckoutOptions,
+  CashfreeCheckoutResult,
+} from "@/types/cashfree";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -55,6 +53,7 @@ export default function CheckoutPage() {
       const loaded = await loadCashfreeScript();
       if (!loaded) {
         alert("Failed to load payment gateway. Please try again.");
+        setIsLoading(false);
         return;
       }
 
@@ -90,61 +89,58 @@ export default function CheckoutPage() {
       const checkoutOptions = {
         paymentSessionId: paymentSessionId,
         redirectTarget: "_modal",
-      };
+      } satisfies CashfreeCheckoutOptions;
 
-      cashfree.checkout(checkoutOptions).then(async (result: any) => {
-        if (result.error) {
-          console.error("Payment error:", result.error);
-          alert("Payment failed or was cancelled. Please try again.");
-          setIsLoading(false);
-          return;
-        }
+      const result: CashfreeCheckoutResult =
+        await cashfree.checkout(checkoutOptions);
 
-        if (result.paymentDetails) {
-          try {
-            // Verify payment on backend
-            const verifyResponse = await fetch("/api/cashfree/verify-product", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                orderId: orderData.order_id,
-                items: items.map((item) => ({
-                  product_id: item.id,
-                  title: item.title,
-                  price: parseFloat(item.price.replace(/[₹,]/g, "")),
-                  quantity: item.quantity,
-                  image: item.image,
-                })),
-                total,
-                shippingAddress: address,
-              }),
-            });
+      if (result.error) {
+        console.error("Payment error:", result.error);
+        alert("Payment failed or was cancelled. Please try again.");
+        return;
+      }
 
-            if (verifyResponse.ok) {
-              const verifyData = await verifyResponse.json();
-              if (verifyData.verified) {
-                clearCart();
-                router.push("/orders?success=true");
-              } else {
-                alert("Payment verification failed. Please contact support.");
-                setIsLoading(false);
-              }
+      if (result.paymentDetails) {
+        try {
+          // Verify payment on backend
+          const verifyResponse = await fetch("/api/cashfree/verify-product", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId: orderData.order_id,
+              items: items.map((item) => ({
+                product_id: item.id,
+                quantity: item.quantity,
+              })),
+              shippingAddress: address,
+            }),
+          });
+
+          if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            if (verifyData.verified) {
+              clearCart();
+              router.push("/orders?success=true");
             } else {
-              alert("Payment verification failed from server. Please contact support.");
-              setIsLoading(false);
+              alert("Payment verification failed. Please contact support.");
             }
-          } catch (e) {
-            console.error(e);
-            alert("Verification error.");
-            setIsLoading(false);
+          } else {
+            alert(
+              "Payment verification failed from server. Please contact support.",
+            );
           }
+        } catch (e) {
+          console.error(e);
+          alert("Verification error.");
         }
-      });
-      return; // wait for modal promise
+        return;
+      }
 
+      alert("Payment was not completed. Please try again.");
     } catch (error) {
       console.error("Payment error:", error);
       alert("Payment failed. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };

@@ -3,12 +3,9 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { reportEntitlements, astrologyReports } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { slugToReportType, ReportSlug } from "@/lib/report-pricing";
+import { isReportSlug, slugToReportType } from "@/lib/report-pricing";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { slug: string } }
-) {
+export async function GET(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -21,23 +18,30 @@ export async function GET(
     if (!slug) {
       return NextResponse.json(
         { error: "Report slug is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const reportType = slugToReportType(slug as ReportSlug);
+    if (!isReportSlug(slug)) {
+      return NextResponse.json(
+        { error: "Invalid report slug" },
+        { status: 400 },
+      );
+    }
+
+    const reportType = slugToReportType(slug);
 
     const [entitlement, existingReport] = await Promise.all([
       db.query.reportEntitlements.findFirst({
         where: and(
           eq(reportEntitlements.userId, userId),
-          eq(reportEntitlements.reportType, reportType)
+          eq(reportEntitlements.reportType, reportType),
         ),
       }),
       db.query.astrologyReports.findFirst({
         where: and(
           eq(astrologyReports.userId, userId),
-          eq(astrologyReports.reportType, reportType)
+          eq(astrologyReports.reportType, reportType),
         ),
       }),
     ]);
@@ -45,11 +49,14 @@ export async function GET(
     return NextResponse.json({
       hasEntitlement: !!entitlement || !!existingReport,
     });
-  } catch (error: any) {
-    console.error("Entitlement check error:", error);
+  } catch (error: unknown) {
+    console.error(
+      "Entitlement check error:",
+      error instanceof Error ? error.message : String(error),
+    );
     return NextResponse.json(
       { error: "Failed to check entitlement" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

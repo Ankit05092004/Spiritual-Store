@@ -99,7 +99,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "rashi_reports_latitude_range": {
+          "name": "rashi_reports_latitude_range",
+          "value": "\"rashi_reports\".\"latitude\" >= -90 AND \"rashi_reports\".\"latitude\" <= 90"
+        },
+        "rashi_reports_longitude_range": {
+          "name": "rashi_reports_longitude_range",
+          "value": "\"rashi_reports\".\"longitude\" >= -180 AND \"rashi_reports\".\"longitude\" <= 180"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.astrology_reports": {
@@ -179,34 +188,24 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "idx_astrology_reports_cache_key": {
-          "name": "idx_astrology_reports_cache_key",
-          "columns": [
-            {
-              "expression": "cache_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
+        "astrology_reports_user_id_users_id_fk": {
+          "name": "astrology_reports_user_id_users_id_fk",
+          "tableFrom": "astrology_reports",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "astrology_reports_order_id_orders_id_fk": {
           "name": "astrology_reports_order_id_orders_id_fk",
           "tableFrom": "astrology_reports",
           "tableTo": "orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -216,9 +215,7 @@
         "astrology_reports_cache_key_unique": {
           "name": "astrology_reports_cache_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "cache_key"
-          ]
+          "columns": ["cache_key"]
         }
       },
       "policies": {},
@@ -285,12 +282,8 @@
           "name": "cart_items_product_id_products_id_fk",
           "tableFrom": "cart_items",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -300,10 +293,7 @@
         "unique_user_product": {
           "name": "unique_user_product",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "product_id"
-          ]
+          "columns": ["user_id", "product_id"]
         }
       },
       "policies": {},
@@ -365,16 +355,12 @@
         "categories_name_unique": {
           "name": "categories_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         },
         "categories_slug_unique": {
           "name": "categories_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -476,9 +462,7 @@
         "coupons_code_unique": {
           "name": "coupons_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -490,6 +474,10 @@
         "coupons_discount_value_positive": {
           "name": "coupons_discount_value_positive",
           "value": "\"coupons\".\"discount_value\" > 0"
+        },
+        "coupons_valid_date_range": {
+          "name": "coupons_valid_date_range",
+          "value": "\"coupons\".\"valid_from\" IS NULL OR \"coupons\".\"valid_until\" IS NULL OR \"coupons\".\"valid_from\" <= \"coupons\".\"valid_until\""
         }
       },
       "isRLSEnabled": false
@@ -586,12 +574,8 @@
           "name": "order_items_order_id_orders_id_fk",
           "tableFrom": "order_items",
           "tableTo": "orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -599,12 +583,8 @@
           "name": "order_items_product_id_products_id_fk",
           "tableFrom": "order_items",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -793,9 +773,7 @@
         "orders_razorpay_order_id_unique": {
           "name": "orders_razorpay_order_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "razorpay_order_id"
-          ]
+          "columns": ["razorpay_order_id"]
         }
       },
       "policies": {},
@@ -898,13 +876,9 @@
           "name": "payments_order_id_orders_id_fk",
           "tableFrom": "payments",
           "tableTo": "orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -913,9 +887,7 @@
         "payments_razorpay_payment_id_unique": {
           "name": "payments_razorpay_payment_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "razorpay_payment_id"
-          ]
+          "columns": ["razorpay_payment_id"]
         }
       },
       "policies": {},
@@ -1095,12 +1067,8 @@
           "name": "products_category_id_categories_id_fk",
           "tableFrom": "products",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1110,9 +1078,7 @@
         "products_slug_unique": {
           "name": "products_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -1367,12 +1333,8 @@
           "name": "reviews_product_id_products_id_fk",
           "tableFrom": "reviews",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1380,12 +1342,8 @@
           "name": "reviews_order_id_orders_id_fk",
           "tableFrom": "reviews",
           "tableTo": "orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1395,10 +1353,7 @@
         "unique_user_product_review": {
           "name": "unique_user_product_review",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "product_id"
-          ]
+          "columns": ["user_id", "product_id"]
         }
       },
       "policies": {},
@@ -1473,9 +1428,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1535,12 +1488,8 @@
           "name": "wishlist_items_product_id_products_id_fk",
           "tableFrom": "wishlist_items",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1550,10 +1499,7 @@
         "unique_user_wishlist_product": {
           "name": "unique_user_wishlist_product",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "product_id"
-          ]
+          "columns": ["user_id", "product_id"]
         }
       },
       "policies": {},
