@@ -89,15 +89,58 @@ export default function CheckoutPage() {
 
       const checkoutOptions = {
         paymentSessionId: paymentSessionId,
-        redirectTarget: "_self",
+        redirectTarget: "_modal",
       };
 
-      // Since we provided return_url on the backend, when using Cashfree's checkout, 
-      // the SDK redirects user automatically to return_url upon success.
-      cashfree.checkout(checkoutOptions);
-      
-      // Because it redirects _self, the component teardown is out of our immediate control here, 
-      // but if an error throws sync, we catch it.
+      cashfree.checkout(checkoutOptions).then(async (result: any) => {
+        if (result.error) {
+          console.error("Payment error:", result.error);
+          alert("Payment failed or was cancelled. Please try again.");
+          setIsLoading(false);
+          return;
+        }
+
+        if (result.paymentDetails) {
+          try {
+            // Verify payment on backend
+            const verifyResponse = await fetch("/api/cashfree/verify-product", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: orderData.order_id,
+                items: items.map((item) => ({
+                  product_id: item.id,
+                  title: item.title,
+                  price: parseFloat(item.price.replace(/[₹,]/g, "")),
+                  quantity: item.quantity,
+                  image: item.image,
+                })),
+                total,
+                shippingAddress: address,
+              }),
+            });
+
+            if (verifyResponse.ok) {
+              const verifyData = await verifyResponse.json();
+              if (verifyData.verified) {
+                clearCart();
+                router.push("/orders?success=true");
+              } else {
+                alert("Payment verification failed. Please contact support.");
+                setIsLoading(false);
+              }
+            } else {
+              alert("Payment verification failed from server. Please contact support.");
+              setIsLoading(false);
+            }
+          } catch (e) {
+            console.error(e);
+            alert("Verification error.");
+            setIsLoading(false);
+          }
+        }
+      });
+      return; // wait for modal promise
 
     } catch (error) {
       console.error("Payment error:", error);

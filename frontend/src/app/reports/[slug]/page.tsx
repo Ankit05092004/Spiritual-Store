@@ -145,29 +145,6 @@ export default function ReportDetailPage() {
           setReportId(fullData.report.id);
           setFromCache(true);
         }
-      } else {
-        // Not generated yet, let's also check if they just PAID for it
-        const urlParams = new URLSearchParams(window.location.search);
-        const orderId = urlParams.get("order_id");
-        if (orderId && !paymentLock.current) {
-          paymentLock.current = true;
-          setLoading(true);
-          const verifyRes = await fetch("/api/cashfree/verify-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId, slug }),
-          });
-
-          if (verifyRes.ok) {
-            const result = await verifyRes.json();
-            if (result.verified) {
-                toast.success("Payment successful! You can now generate your report.");
-                // Remove order_id from URL
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-          }
-          setLoading(false);
-        }
       }
     } catch (error) {
       console.error("Failed to check cached report:", error);
@@ -265,7 +242,6 @@ export default function ReportDetailPage() {
         }
 
         const orderData = await createOrderRes.json();
-        
         const cashfreeEnv =
           process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
             ? "production"
@@ -274,15 +250,50 @@ export default function ReportDetailPage() {
 
         const checkoutOptions = {
           paymentSessionId: orderData.payment_session_id,
-          redirectTarget: "_self",
+          redirectTarget: "_modal",
         };
 
-        cashfree.checkout(checkoutOptions);
-        return; // Execution stops here as Cashfree redirects
+        cashfree.checkout(checkoutOptions).then(async (result: any) => {
+          if (result.error) {
+            toast.error("Payment was cancelled or failed");
+            setLoading(false);
+            return;
+          }
+          if (result.paymentDetails) {
+            const verifyRes = await fetch("/api/cashfree/verify-report", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orderId: orderData.order_id, slug }),
+            });
+            if (verifyRes.ok) {
+              const verData = await verifyRes.json();
+              if (verData.verified) {
+                toast.success("Payment successful! Generating your report...");
+                await generateReportData();
+              } else {
+                toast.error("Payment verification failed");
+                setLoading(false);
+              }
+            } else {
+              toast.error("Payment verification failed from server");
+              setLoading(false);
+            }
+          }
+        });
+        return; // Wait for modal promise
       }
 
-      // If entitled, proceed contextually:
-      
+      // If entitled, proceed contextually directly:
+      await generateReportData();
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const generateReportData = async () => {
+    try {
       // For now, use mock birth chart data since we're generating directly
       // In production, this would come from FreeAstrologyAPI
       const mockProfile = {
@@ -373,8 +384,8 @@ export default function ReportDetailPage() {
           : "Report generated successfully!",
       );
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("Something went wrong. Please try again.");
+      console.error("Error generating report:", error);
+      toast.error("Something went wrong while generating the report.");
     } finally {
       setLoading(false);
     }
