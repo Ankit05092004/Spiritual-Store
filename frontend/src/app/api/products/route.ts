@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     const total = Number(totalResult?.count || 0);
 
     // 2. Get paginated results
-    let query = db
+    const query = db
       .select({
         id: products.id,
         title: products.title,

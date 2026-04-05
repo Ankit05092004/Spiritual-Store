@@ -186,6 +186,9 @@ export const orders = pgTable(
     userId: text("user_id").notNull(),
     razorpayOrderId: text("razorpay_order_id").unique(),
     razorpayPaymentId: text("razorpay_payment_id"),
+    cashfreeOrderId: text("cashfree_order_id").unique(),
+    cashfreePaymentId: text("cashfree_payment_id"),
+    orderKind: text("order_kind").default("product").notNull(),
     status: text("status", {
       enum: [
         "pending",
@@ -228,6 +231,10 @@ export const orders = pgTable(
     check(
       "orders_amounts_positive",
       sql`${table.subtotal} >= 0 AND ${table.shippingCost} >= 0 AND ${table.total} >= 0 AND ${table.discount} >= 0`,
+    ),
+    check(
+      "orders_order_kind_check",
+      sql`${table.orderKind} IN ('product', 'report')`
     ),
   ],
 );
@@ -300,6 +307,8 @@ export const payments = pgTable(
       .notNull(),
     razorpayPaymentId: text("razorpay_payment_id").unique(),
     razorpayOrderId: text("razorpay_order_id"),
+    cashfreePaymentId: text("cashfree_payment_id").unique(),
+    cashfreeOrderId: text("cashfree_order_id"),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
     currency: text("currency").default("INR"),
     status: text("status", {
@@ -485,6 +494,49 @@ export const rashiReportsRelations = relations(rashiReports, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// ============================================
+// REPORT ENTITLEMENTS
+// ============================================
+export const reportEntitlements = pgTable(
+  "report_entitlements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    reportType: text("report_type").notNull(),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_report_entitlements_user").on(table.userId),
+    unique("unique_user_report_type_entitlement").on(
+      table.userId,
+      table.reportType,
+    ),
+    check(
+      "report_entitlements_report_type_check",
+      sql`${table.reportType} IN ('1-year', '3-year', '5-year')`
+    ),
+  ],
+);
+
+export const reportEntitlementsRelations = relations(
+  reportEntitlements,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [reportEntitlements.userId],
+      references: [users.id],
+    }),
+    order: one(orders, {
+      fields: [reportEntitlements.orderId],
+      references: [orders.id],
+    }),
+  }),
+);
 
 // ============================================
 // ASTROLOGY REPORTS (Generated prediction reports)

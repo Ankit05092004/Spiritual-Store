@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { notFound, useParams } from "next/navigation";
 import InternationalSupport from "@/components/InternationalSupport";
@@ -18,6 +18,8 @@ import {
   printReport,
   ExtendedAstrologyReport,
 } from "@/lib/astrology-reports";
+import { loadCashfreeScript } from "@/lib/cashfree-client";
+import { getReportPrice } from "@/lib/report-pricing";
 
 interface LocationSuggestion {
   displayName: string;
@@ -112,6 +114,7 @@ export default function ReportDetailPage() {
     rasi: string | null;
     navamsa: string | null;
   } | null>(null);
+  const paymentLock = useRef(false);
 
   // Location autocomplete
   const [locationSuggestions, setLocationSuggestions] = useState<
@@ -120,20 +123,7 @@ export default function ReportDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingLocation, setSearchingLocation] = useState(false);
 
-  if (!report) {
-    return notFound();
-  }
-
-  // Check for cached report on mount
-  useEffect(() => {
-    if (isSignedIn) {
-      checkCachedReport();
-    } else {
-      setLoadingCached(false);
-    }
-  }, [isSignedIn]);
-
-  const checkCachedReport = async () => {
+  const checkCachedReport = useCallback(async () => {
     try {
       const response = await fetch("/api/reports/user");
       if (!response.ok) {
@@ -144,7 +134,7 @@ export default function ReportDetailPage() {
       // Find a report matching this duration
       const matchingReport = data.reports?.find(
         (r: { reportType: string }) =>
-          r.reportType === `${report.duration}-year`,
+          r.reportType === `${report?.duration}-year`,
       );
       if (matchingReport) {
         // Fetch the full report
@@ -155,14 +145,44 @@ export default function ReportDetailPage() {
           setReportId(fullData.report.id);
           setFromCache(true);
         }
+      } else {
+        // Not generated yet, let's also check if they just PAID for it
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderId = urlParams.get("order_id");
+        if (orderId && !paymentLock.current) {
+          paymentLock.current = true;
+          setLoading(true);
+          const verifyRes = await fetch("/api/cashfree/verify-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, slug }),
+          });
+
+          if (verifyRes.ok) {
+            const result = await verifyRes.json();
+            if (result.verified) {
+                toast.success("Payment successful! You can now generate your report.");
+                // Remove order_id from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }
+          setLoading(false);
+        }
       }
     } catch (error) {
       console.error("Failed to check cached report:", error);
     } finally {
       setLoadingCached(false);
     }
-  };
+  }, [report?.duration, slug, paymentLock]);
 
+  useEffect(() => {
+    if (isSignedIn && report) {
+      checkCachedReport();
+    } else {
+      setLoadingCached(false);
+    }
+  }, [isSignedIn, report, checkCachedReport]);
   // Location search
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 3) {
@@ -195,6 +215,10 @@ export default function ReportDetailPage() {
     return () => clearTimeout(timer);
   }, [formData.location, searchLocation]);
 
+  if (!report) {
+    return notFound();
+  }
+
   const handleLocationSelect = (suggestion: LocationSuggestion) => {
     setFormData({ ...formData, location: suggestion.displayName });
     setShowSuggestions(false);
@@ -217,6 +241,48 @@ export default function ReportDetailPage() {
     setLoading(true);
 
     try {
+      // 1. Check if user has entitlement for this report explicitly
+      const entitCheck = await fetch(`/api/reports/entitlement?slug=${slug}`);
+      const entitData = await entitCheck.json();
+
+      if (!entitData.hasEntitlement) {
+        // User needs to pay. Load Cashfree Payment.
+        const loaded = await loadCashfreeScript();
+        if (!loaded) {
+          toast.error("Failed to load payment gateway");
+          setLoading(false);
+          return;
+        }
+
+        const createOrderRes = await fetch("/api/cashfree/create-report-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug }),
+        });
+
+        if (!createOrderRes.ok) {
+          throw new Error("Failed to create report payment order");
+        }
+
+        const orderData = await createOrderRes.json();
+        
+        const cashfreeEnv =
+          process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
+            ? "production"
+            : "sandbox";
+        const cashfree = window.Cashfree({ mode: cashfreeEnv });
+
+        const checkoutOptions = {
+          paymentSessionId: orderData.payment_session_id,
+          redirectTarget: "_self",
+        };
+
+        cashfree.checkout(checkoutOptions);
+        return; // Execution stops here as Cashfree redirects
+      }
+
+      // If entitled, proceed contextually:
+      
       // For now, use mock birth chart data since we're generating directly
       // In production, this would come from FreeAstrologyAPI
       const mockProfile = {
@@ -660,7 +726,7 @@ export default function ReportDetailPage() {
                         <span className="material-symbols-outlined">
                           auto_awesome
                         </span>
-                        Generate {report.duration}-Year Report
+                        Generate {report.duration}-Year Report (₹{getReportPrice(slug).toLocaleString()})
                       </>
                     )}
                   </Button>
