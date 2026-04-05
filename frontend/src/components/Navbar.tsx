@@ -101,6 +101,7 @@ const menuItems: MenuItem[] = [
 
 export default function Navbar() {
   const totalItems = useCartStore((state) => state.getTotalItems());
+  const [isHydrated, setIsHydrated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [activeMobileDropdown, setActiveMobileDropdown] = useState<
@@ -109,6 +110,10 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -256,7 +261,7 @@ export default function Navbar() {
                 className="rounded-full hover:bg-primary/10 hover:text-primary transition-colors relative"
               >
                 <span className="material-symbols-outlined">shopping_bag</span>
-                {totalItems > 0 && (
+                {isHydrated && totalItems > 0 && (
                   <Badge className="absolute -top-1 -right-1 size-5 p-0 flex items-center justify-center text-[10px]">
                     {totalItems}
                   </Badge>
