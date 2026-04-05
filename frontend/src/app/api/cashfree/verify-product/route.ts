@@ -21,50 +21,48 @@ export async function POST(req: Request) {
     const verification = await verifyCashfreePayment(orderId);
 
     if (verification.payment_status === "SUCCESS") {
-      // Begin transaction to securely record order
-      await db.transaction(async (tx) => {
-        // 1. Create the main order summary
-        const [newOrder] = await tx
-          .insert(orders)
-          .values({
-            userId,
-            cashfreeOrderId: orderId,
-            status: "paid",
-            subtotal: verification.order_amount.toString(),
-            total: verification.order_amount.toString(),
-            shippingAddress,
-            itemsSnapshot: clientItems, // Note: ideally built from server cart items
-            orderKind: "product",
-          })
-          .returning();
+      // Execute sequentially (Neon HTTP driver does not support transactions)
+      // 1. Create the main order summary
+      const [newOrder] = await db
+        .insert(orders)
+        .values({
+          userId,
+          cashfreeOrderId: orderId,
+          status: "paid",
+          subtotal: verification.order_amount.toString(),
+          total: verification.order_amount.toString(),
+          shippingAddress,
+          itemsSnapshot: clientItems, // Note: ideally built from server cart items
+          orderKind: "product",
+        })
+        .returning();
 
-        // 2. Insert order items
-        await tx.insert(orderItems).values(
-          clientItems.map((item: any) => ({
-            orderId: newOrder.id,
-            productId: item.product_id,
-            title: item.title,
-            price: item.price.toString(),
-            quantity: item.quantity,
-            image: item.image,
-          }))
-        );
-
-        // 3. Clear cart
-        await tx.delete(cartItems).where(eq(cartItems.userId, userId));
-
-        // 4. Record payment log
-        await tx.insert(payments).values({
+      // 2. Insert order items
+      await db.insert(orderItems).values(
+        clientItems.map((item: any) => ({
           orderId: newOrder.id,
-          amount: verification.order_amount.toString(),
-          currency: verification.order_currency,
-          status: "captured",
-          method: "cashfree",
-          metadata: {
-            cashfree_order_id: verification.order_id,
-            raw_status: verification.order_status,
-          },
-        });
+          productId: item.product_id,
+          title: item.title,
+          price: item.price.toString(),
+          quantity: item.quantity,
+          image: item.image,
+        }))
+      );
+
+      // 3. Clear cart
+      await db.delete(cartItems).where(eq(cartItems.userId, userId));
+
+      // 4. Record payment log
+      await db.insert(payments).values({
+        orderId: newOrder.id,
+        amount: verification.order_amount.toString(),
+        currency: verification.order_currency,
+        status: "captured",
+        method: "cashfree",
+        metadata: {
+          cashfree_order_id: verification.order_id,
+          raw_status: verification.order_status,
+        },
       });
 
       return NextResponse.json({ success: true, verified: true });

@@ -25,56 +25,54 @@ export async function POST(req: Request) {
     const verification = await verifyCashfreePayment(orderId);
 
     if (verification.payment_status === "SUCCESS") {
-      // Create entitlement within a transaction
-      await db.transaction(async (tx) => {
-        // 1. Create order summary
-        const [newOrder] = await tx
-          .insert(orders)
-          .values({
-            userId,
-            cashfreeOrderId: orderId,
-            status: "paid",
-            subtotal: verification.order_amount.toString(),
-            total: verification.order_amount.toString(),
-            shippingAddress: {
-              name: "N/A - Digital",
-              line1: "N/A",
-              city: "N/A",
-              state: "N/A",
-              pincode: "000000",
-              phone: "0000000000",
-            },
-            itemsSnapshot: [
-              {
-                productId: "digital-report",
-                title: `${reportType} Report`,
-                price: verification.order_amount,
-                quantity: 1,
-              },
-            ],
-            orderKind: "report",
-          })
-          .returning();
-
-        // 2. Grant report entitlement
-        await tx.insert(reportEntitlements).values({
+      // Create entitlement sequentially (Neon HTTP does not support transactions)
+      // 1. Create order summary
+      const [newOrder] = await db
+        .insert(orders)
+        .values({
           userId,
-          reportType,
-          orderId: newOrder.id,
-        }).onConflictDoNothing({ target: [reportEntitlements.userId, reportEntitlements.reportType] }); // Idempotent support
-
-        // 3. Record payment
-        await tx.insert(payments).values({
-          orderId: newOrder.id,
-          amount: verification.order_amount.toString(),
-          currency: verification.order_currency,
-          status: "captured",
-          method: "cashfree",
-          metadata: {
-            cashfree_order_id: verification.order_id,
-            raw_status: verification.order_status,
+          cashfreeOrderId: orderId,
+          status: "paid",
+          subtotal: verification.order_amount.toString(),
+          total: verification.order_amount.toString(),
+          shippingAddress: {
+            name: "N/A - Digital",
+            line1: "N/A",
+            city: "N/A",
+            state: "N/A",
+            pincode: "000000",
+            phone: "0000000000",
           },
-        });
+          itemsSnapshot: [
+            {
+              productId: "digital-report",
+              title: `${reportType} Report`,
+              price: verification.order_amount,
+              quantity: 1,
+            },
+          ],
+          orderKind: "report",
+        })
+        .returning();
+
+      // 2. Grant report entitlement
+      await db.insert(reportEntitlements).values({
+        userId,
+        reportType,
+        orderId: newOrder.id,
+      }).onConflictDoNothing({ target: [reportEntitlements.userId, reportEntitlements.reportType] }); // Idempotent support
+
+      // 3. Record payment
+      await db.insert(payments).values({
+        orderId: newOrder.id,
+        amount: verification.order_amount.toString(),
+        currency: verification.order_currency,
+        status: "captured",
+        method: "cashfree",
+        metadata: {
+          cashfree_order_id: verification.order_id,
+          raw_status: verification.order_status,
+        },
       });
 
       return NextResponse.json({ success: true, verified: true });
