@@ -12,6 +12,25 @@ import { db } from "@/db";
 import { astrologyReports } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+const getReportDisplayName = (report: {
+  reportType: string;
+  birthData: { name?: string; dob?: string } | null;
+}) => {
+  const birthName = report.birthData?.name?.trim();
+  if (birthName) {
+    return birthName;
+  }
+
+  const typeLabel = report.reportType.replaceAll("-", " ");
+  const birthDate = report.birthData?.dob;
+
+  if (birthDate) {
+    return `${typeLabel} report (${birthDate})`;
+  }
+
+  return `${typeLabel} report`;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -36,6 +55,8 @@ export async function GET(request: NextRequest) {
         reportType: r.reportType,
         years: r.reportData.years,
         createdAt: r.createdAt,
+        name: getReportDisplayName(r),
+        birthDate: r.birthData?.dob,
         // Include summary but not full data for list view
         preview: {
           duration: r.reportData.duration,

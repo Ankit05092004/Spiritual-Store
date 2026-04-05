@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
         userId: userId,
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
+        orderKind: "product",
         status: "paid",
         subtotal: subtotal.toString(),
         total: total.toString(),

@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
         reportType,
         birthData: {
           dob: profile.dob,
+          name: profile.name,
           sunSign: profile.sunSign,
           moonSign: profile.moonSign,
           ascendant: profile.ascendant,

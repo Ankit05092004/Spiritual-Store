@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { notFound, useParams } from "next/navigation";
 import InternationalSupport from "@/components/InternationalSupport";
@@ -18,6 +18,12 @@ import {
   printReport,
   ExtendedAstrologyReport,
 } from "@/lib/astrology-reports";
+import { loadCashfreeScript } from "@/lib/cashfree-client";
+import { getReportPrice } from "@/lib/report-pricing";
+import type {
+  CashfreeCheckoutOptions,
+  CashfreeCheckoutResult,
+} from "@/types/cashfree";
 
 interface LocationSuggestion {
   displayName: string;
@@ -96,6 +102,7 @@ export default function ReportDetailPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
+    phone: "",
     date: "",
     time: "",
     location: "",
@@ -108,10 +115,12 @@ export default function ReportDetailPage() {
     useState<AstrologyReport | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
+  const [showNewReportForm, setShowNewReportForm] = useState(false);
   const [birthCharts, setBirthCharts] = useState<{
     rasi: string | null;
     navamsa: string | null;
   } | null>(null);
+  const paymentLock = useRef(false);
 
   // Location autocomplete
   const [locationSuggestions, setLocationSuggestions] = useState<
@@ -120,20 +129,7 @@ export default function ReportDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingLocation, setSearchingLocation] = useState(false);
 
-  if (!report) {
-    return notFound();
-  }
-
-  // Check for cached report on mount
-  useEffect(() => {
-    if (isSignedIn) {
-      checkCachedReport();
-    } else {
-      setLoadingCached(false);
-    }
-  }, [isSignedIn]);
-
-  const checkCachedReport = async () => {
+  const checkCachedReport = useCallback(async () => {
     try {
       const response = await fetch("/api/reports/user");
       if (!response.ok) {
@@ -144,7 +140,7 @@ export default function ReportDetailPage() {
       // Find a report matching this duration
       const matchingReport = data.reports?.find(
         (r: { reportType: string }) =>
-          r.reportType === `${report.duration}-year`,
+          r.reportType === `${report?.duration}-year`,
       );
       if (matchingReport) {
         // Fetch the full report
@@ -161,8 +157,15 @@ export default function ReportDetailPage() {
     } finally {
       setLoadingCached(false);
     }
-  };
+  }, [report?.duration]);
 
+  useEffect(() => {
+    if (isSignedIn && report) {
+      checkCachedReport();
+    } else {
+      setLoadingCached(false);
+    }
+  }, [isSignedIn, report, checkCachedReport]);
   // Location search
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 3) {
@@ -195,6 +198,10 @@ export default function ReportDetailPage() {
     return () => clearTimeout(timer);
   }, [formData.location, searchLocation]);
 
+  if (!report) {
+    return notFound();
+  }
+
   const handleLocationSelect = (suggestion: LocationSuggestion) => {
     setFormData({ ...formData, location: suggestion.displayName });
     setShowSuggestions(false);
@@ -209,13 +216,112 @@ export default function ReportDetailPage() {
       return;
     }
 
+    if (paymentLock.current) {
+      return;
+    }
+
     if (!formData.date || !formData.time || !formData.location) {
       toast.error("Please fill in all required fields");
       return;
     }
 
+    paymentLock.current = true;
     setLoading(true);
 
+    try {
+      // 1. Check if user has entitlement for this report explicitly
+      const entitCheck = await fetch(`/api/reports/entitlement?slug=${slug}`);
+      if (!entitCheck.ok) {
+        throw new Error("Failed to check entitlement");
+      }
+
+      const entitData = (await entitCheck.json()) as {
+        hasEntitlement?: boolean;
+      };
+
+      if (entitData.hasEntitlement !== true) {
+        // User needs to pay. Load Cashfree Payment.
+        const loaded = await loadCashfreeScript();
+        if (!loaded) {
+          toast.error("Failed to load payment gateway");
+          return;
+        }
+
+        const createOrderRes = await fetch(
+          "/api/cashfree/create-report-order",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slug,
+              customerPhone: formData.phone,
+            }),
+          },
+        );
+
+        if (!createOrderRes.ok) {
+          throw new Error("Failed to create report payment order");
+        }
+
+        const orderData = await createOrderRes.json();
+        const cashfreeEnv =
+          process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
+            ? "production"
+            : "sandbox";
+        if (!window.Cashfree) {
+          throw new Error("Cashfree SDK is unavailable");
+        }
+        const cashfree = window.Cashfree({ mode: cashfreeEnv });
+
+        const checkoutOptions: CashfreeCheckoutOptions = {
+          paymentSessionId: orderData.payment_session_id,
+          redirectTarget: "_modal",
+        };
+
+        const result: CashfreeCheckoutResult =
+          await cashfree.checkout(checkoutOptions);
+
+        if (result.error) {
+          toast.error("Payment was cancelled or failed");
+          return;
+        }
+
+        if (result.paymentDetails) {
+          const verifyRes = await fetch("/api/cashfree/verify-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: orderData.order_id, slug }),
+          });
+          if (verifyRes.ok) {
+            const verData = await verifyRes.json();
+            if (verData.verified) {
+              toast.success("Payment successful! Generating your report...");
+              await generateReportData();
+            } else {
+              toast.error("Payment verification failed");
+            }
+          } else {
+            toast.error("Payment verification failed from server");
+          }
+          return;
+        }
+
+        toast.error("Payment was not completed. Please try again.");
+        return;
+      }
+
+      // If entitled, proceed contextually directly:
+      await generateReportData();
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      paymentLock.current = false;
+      setLoading(false);
+    }
+  };
+
+  const generateReportData = async () => {
     try {
       // For now, use mock birth chart data since we're generating directly
       // In production, this would come from FreeAstrologyAPI
@@ -301,14 +407,19 @@ export default function ReportDetailPage() {
       setGeneratedReport(data.report);
       setReportId(data.reportId);
       setFromCache(data.fromCache);
+      setShowNewReportForm(false); // Hide form after generating
       toast.success(
         data.fromCache
           ? "Report loaded from cache!"
           : "Report generated successfully!",
       );
+      // Scroll to report
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 100);
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("Something went wrong. Please try again.");
+      console.error("Error generating report:", error);
+      toast.error("Something went wrong while generating the report.");
     } finally {
       setLoading(false);
     }
@@ -334,6 +445,25 @@ export default function ReportDetailPage() {
       };
       printReport(extendedReport);
     }
+  };
+
+  const handleGenerateNewReport = () => {
+    setShowNewReportForm(true);
+    // Clear form data for new entry
+    setFormData({
+      name: "",
+      phone: "",
+      date: "",
+      time: "",
+      location: "",
+    });
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelNewReport = () => {
+    setShowNewReportForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -403,10 +533,22 @@ export default function ReportDetailPage() {
                       • Years: {generatedReport.years.join(", ")}
                     </p>
                   </div>
-                  <Button onClick={handleDownloadPDF} className="gap-2">
-                    <span className="material-symbols-outlined">download</span>
-                    Download PDF
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      onClick={handleGenerateNewReport}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <span className="material-symbols-outlined">add</span>
+                      Generate New Report
+                    </Button>
+                    <Button onClick={handleDownloadPDF} className="gap-2">
+                      <span className="material-symbols-outlined">
+                        download
+                      </span>
+                      Download PDF
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Yearly Reports */}
@@ -511,14 +653,30 @@ export default function ReportDetailPage() {
       )}
 
       {/* Form Section */}
-      {!generatedReport && (
+      {(!generatedReport || showNewReportForm) && (
         <section className="py-16 px-6">
           <div className="max-w-2xl mx-auto">
             <Card className="border-primary/10 shadow-2xl shadow-primary/5">
               <CardContent className="p-8 space-y-6">
                 <div className="text-center mb-8">
+                  {showNewReportForm && generatedReport && (
+                    <div className="mb-4">
+                      <Button
+                        onClick={handleCancelNewReport}
+                        variant="ghost"
+                        className="gap-2"
+                      >
+                        <span className="material-symbols-outlined">
+                          arrow_back
+                        </span>
+                        Back to Current Report
+                      </Button>
+                    </div>
+                  )}
                   <h2 className="text-2xl font-serif font-bold mb-2">
-                    Generate Your Report
+                    {showNewReportForm
+                      ? "Generate New Report"
+                      : "Generate Your Report"}
                   </h2>
                   <p className="text-muted-foreground text-sm">
                     Enter your birth details for personalized predictions
@@ -543,6 +701,40 @@ export default function ReportDetailPage() {
                         }
                       />
                     </div>
+                  </div>
+
+                  {/* Phone Number */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold">Phone Number *</Label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        phone
+                      </span>
+                      <Input
+                        className="pl-12 h-14 bg-background border-border/50 rounded-xl text-base"
+                        placeholder="10-digit mobile number"
+                        type="tel"
+                        required
+                        pattern="[0-9]{10}"
+                        value={formData.phone}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, "");
+                          const withoutCountryCode =
+                            digitsOnly.startsWith("91") &&
+                            digitsOnly.length > 10
+                              ? digitsOnly.slice(2)
+                              : digitsOnly;
+
+                          setFormData({
+                            ...formData,
+                            phone: withoutCountryCode.slice(0, 10),
+                          });
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Required for order confirmation and delivery updates
+                    </p>
                   </div>
 
                   {/* Date & Time */}
@@ -660,7 +852,8 @@ export default function ReportDetailPage() {
                         <span className="material-symbols-outlined">
                           auto_awesome
                         </span>
-                        Generate {report.duration}-Year Report
+                        Generate {report.duration}-Year Report (₹
+                        {getReportPrice(slug).toLocaleString()})
                       </>
                     )}
                   </Button>

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface Order {
   id: string;
-  razorpay_order_id: string;
+  razorpay_order_id: string | null;
   status: string;
   total: number;
   items: Array<{
@@ -20,10 +20,51 @@ interface Order {
     title: string;
     price: number;
     quantity: number;
-    image: string;
+    image?: string;
   }>;
   created_at: string;
 }
+
+interface RawOrderItem {
+  product_id?: string;
+  productId?: string;
+  title?: string;
+  price?: number | string;
+  quantity?: number;
+  image?: string;
+}
+
+const normalizeOrderItems = (value: unknown): Order["items"] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item): Order["items"][number] | null => {
+      const raw = item as RawOrderItem;
+      const productId = raw.product_id ?? raw.productId;
+
+      if (!productId || !raw.title) {
+        return null;
+      }
+
+      const priceNumber =
+        typeof raw.price === "number"
+          ? raw.price
+          : Number.parseFloat(raw.price ?? "0");
+      const quantityNumber =
+        typeof raw.quantity === "number" && raw.quantity > 0 ? raw.quantity : 1;
+
+      return {
+        product_id: productId,
+        title: raw.title,
+        price: Number.isFinite(priceNumber) ? priceNumber : 0,
+        quantity: quantityNumber,
+        image: raw.image,
+      };
+    })
+    .filter((item): item is Order["items"][number] => item !== null);
+};
 
 function OrdersContent() {
   const searchParams = useSearchParams();
@@ -38,15 +79,20 @@ function OrdersContent() {
         const response = await fetch("/api/orders");
         if (response.ok) {
           const data = await response.json();
+          const rawOrders = Array.isArray(data.orders) ? data.orders : [];
+
           // Transform from Drizzle camelCase to component's expected format
-          const transformedOrders = data.orders.map(
+          const transformedOrders = rawOrders.map(
             (order: Record<string, unknown>) => ({
-              id: order.id,
-              razorpay_order_id: order.razorpayOrderId,
-              status: order.status,
-              total: parseFloat(order.total as string),
-              items: order.items,
-              created_at: order.createdAt,
+              id: String(order.id ?? ""),
+              razorpay_order_id:
+                (order.razorpayOrderId as string | null | undefined) ?? null,
+              status: String(order.status ?? "pending"),
+              total: Number.parseFloat(String(order.total ?? "0")),
+              items: normalizeOrderItems(
+                order.items ?? order.itemsSnapshot ?? order.items_snapshot,
+              ),
+              created_at: String(order.createdAt ?? order.created_at ?? ""),
             }),
           );
           setOrders(transformedOrders);
@@ -139,7 +185,9 @@ function OrdersContent() {
                       <div
                         className="w-16 h-16 rounded-lg bg-cover bg-center shrink-0"
                         style={{
-                          backgroundImage: `url('${item.image}')`,
+                          backgroundImage: item.image
+                            ? `url('${item.image}')`
+                            : "none",
                         }}
                       />
                       <div className="flex-1">

@@ -10,40 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useCartStore } from "@/lib/stores/cart-store";
-
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
-  }
-}
-
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: RazorpayResponse) => void;
-  prefill: {
-    name: string;
-    email: string;
-    contact: string;
-  };
-  theme: {
-    color: string;
-  };
-}
-
-interface RazorpayInstance {
-  open: () => void;
-}
-
-interface RazorpayResponse {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-}
+import { loadCashfreeScript } from "@/lib/cashfree-client";
+import type {
+  CashfreeCheckoutOptions,
+  CashfreeCheckoutResult,
+} from "@/types/cashfree";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -63,16 +34,6 @@ export default function CheckoutPage() {
 
   const total = getTotalPrice();
 
-  const loadRazorpay = () => {
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
   const handlePayment = async () => {
     if (
       !address.name ||
@@ -89,22 +50,32 @@ export default function CheckoutPage() {
     setIsLoading(true);
 
     try {
-      // Load Razorpay script
-      const loaded = await loadRazorpay();
+      const loaded = await loadCashfreeScript();
       if (!loaded) {
         alert("Failed to load payment gateway. Please try again.");
         setIsLoading(false);
         return;
       }
 
-      // Create order on backend
-      const response = await fetch("/api/checkout", {
+      // We read environment safely
+      const cashfreeEnv =
+        process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
+          ? "production"
+          : "sandbox";
+      if (!window.Cashfree) {
+        throw new Error("Cashfree SDK is unavailable");
+      }
+
+      const cashfree = window.Cashfree({
+        mode: cashfreeEnv,
+      });
+
+      // Fetch checkout order ID mapped for products
+      const response = await fetch("/api/cashfree/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: total,
-          currency: "INR",
-          receipt: `order_${Date.now()}`,
+          customerPhone: address.phone,
         }),
       });
 
@@ -112,57 +83,64 @@ export default function CheckoutPage() {
         throw new Error("Failed to create order");
       }
 
-      const { orderId, amount } = await response.json();
+      const orderData = await response.json();
+      const paymentSessionId = orderData.payment_session_id;
 
-      // Open Razorpay checkout
-      const options: RazorpayOptions = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-        amount: amount,
-        currency: "INR",
-        name: "MahadevAstro",
-        description: "Purchase of spiritual products",
-        order_id: orderId,
-        handler: async (response: RazorpayResponse) => {
+      if (!paymentSessionId) {
+        throw new Error("Invalid payment session ID");
+      }
+
+      const checkoutOptions = {
+        paymentSessionId: paymentSessionId,
+        redirectTarget: "_modal",
+      } satisfies CashfreeCheckoutOptions;
+
+      const result: CashfreeCheckoutResult =
+        await cashfree.checkout(checkoutOptions);
+
+      if (result.error) {
+        console.error("Payment error:", result.error);
+        alert("Payment failed or was cancelled. Please try again.");
+        return;
+      }
+
+      if (result.paymentDetails) {
+        try {
           // Verify payment on backend
-          const verifyResponse = await fetch("/api/verify-payment", {
+          const verifyResponse = await fetch("/api/cashfree/verify-product", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              user_id: user?.id,
+              orderId: orderData.order_id,
               items: items.map((item) => ({
                 product_id: item.id,
-                title: item.title,
-                price: parseFloat(item.price.replace(/[₹,]/g, "")),
                 quantity: item.quantity,
-                image: item.image,
               })),
-              total,
-              shipping_address: address,
+              shippingAddress: address,
             }),
           });
 
           if (verifyResponse.ok) {
-            clearCart();
-            router.push("/orders?success=true");
+            const verifyData = await verifyResponse.json();
+            if (verifyData.verified) {
+              clearCart();
+              router.push("/orders?success=true");
+            } else {
+              alert("Payment verification failed. Please contact support.");
+            }
           } else {
-            alert("Payment verification failed. Please contact support.");
+            alert(
+              "Payment verification failed from server. Please contact support.",
+            );
           }
-        },
-        prefill: {
-          name: address.name,
-          email: user?.emailAddresses[0]?.emailAddress || "",
-          contact: address.phone,
-        },
-        theme: {
-          color: "#f97066",
-        },
-      };
+        } catch (e) {
+          console.error(e);
+          alert("Verification error.");
+        }
+        return;
+      }
 
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
+      alert("Payment was not completed. Please try again.");
     } catch (error) {
       console.error("Payment error:", error);
       alert("Payment failed. Please try again.");
@@ -353,7 +331,7 @@ export default function CheckoutPage() {
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      Secured by Razorpay. Your payment information is safe.
+                      Secured by Cashfree. Your payment information is safe.
                     </p>
                   </CardContent>
                 </Card>
