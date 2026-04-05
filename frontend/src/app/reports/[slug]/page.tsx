@@ -102,6 +102,7 @@ export default function ReportDetailPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
+    phone: "",
     date: "",
     time: "",
     location: "",
@@ -250,7 +251,10 @@ export default function ReportDetailPage() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ slug }),
+            body: JSON.stringify({ 
+              slug,
+              customerPhone: formData.phone,
+            }),
           },
         );
 
@@ -641,6 +645,30 @@ export default function ReportDetailPage() {
                         }
                       />
                     </div>
+                  </div>
+
+                  {/* Phone Number */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold">Phone Number *</Label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        phone
+                      </span>
+                      <Input
+                        className="pl-12 h-14 bg-background border-border/50 rounded-xl text-base"
+                        placeholder="10-digit mobile number"
+                        type="tel"
+                        required
+                        pattern="[0-9]{10}"
+                        value={formData.phone}
+                        onChange={(e) =>
+                          setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Required for order confirmation and delivery updates
+                    </p>
                   </div>
 
                   {/* Date & Time */}

@@ -3,6 +3,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { getReportPrice } from "@/lib/report-pricing";
 import { createCashfreeOrder } from "@/lib/cashfree";
 import { randomUUID } from "crypto";
+import { db, addresses } from "@/db";
+import { eq, and } from "drizzle-orm";
 
 const sanitizeCustomerPhone = (phone: unknown) => {
   if (typeof phone !== "string") {
@@ -72,10 +74,42 @@ export async function POST(req: Request) {
       );
     }
 
-    const sanitizedPhone = sanitizeCustomerPhone(customerPhone);
+    // Get phone from request or fetch from user's default address
+    let sanitizedPhone: string | null = null;
+    
+    if (customerPhone) {
+      sanitizedPhone = sanitizeCustomerPhone(customerPhone);
+    }
+    
+    // If no phone provided or invalid, fetch from default address
+    if (!sanitizedPhone) {
+      const defaultAddress = await db.query.addresses.findFirst({
+        where: and(
+          eq(addresses.userId, userId),
+          eq(addresses.isDefault, true)
+        ),
+      });
+      
+      if (defaultAddress?.phone) {
+        sanitizedPhone = sanitizeCustomerPhone(defaultAddress.phone);
+      }
+    }
+    
+    // If still no valid phone, try any address
+    if (!sanitizedPhone) {
+      const anyAddress = await db.query.addresses.findFirst({
+        where: eq(addresses.userId, userId),
+        orderBy: (addresses, { desc }) => [desc(addresses.createdAt)],
+      });
+      
+      if (anyAddress?.phone) {
+        sanitizedPhone = sanitizeCustomerPhone(anyAddress.phone);
+      }
+    }
+    
     if (!sanitizedPhone) {
       return NextResponse.json(
-        { error: "Invalid customer phone number" },
+        { error: "Phone number required. Please add a delivery address with phone number in your profile." },
         { status: 400 },
       );
     }
