@@ -22,17 +22,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const orderRecord = await db.query.orders.findFirst({
-      where: and(
-        eq(orders.cashfreeOrderId, orderId),
-        eq(orders.userId, userId),
-      ),
-    });
-
-    if (!orderRecord) {
-      return NextResponse.json({ error: "Order not found" }, { status: 403 });
-    }
-
     const reportType = slugToReportType(slug);
     const verification = await verifyCashfreePayment(orderId);
 
@@ -77,7 +66,7 @@ export async function POST(req: Request) {
           return fallbackOrder ? [fallbackOrder] : [];
         });
 
-      if (!newOrder) {
+      if (!newOrder || !newOrder[0]) {
         throw new Error("Failed to create or load order");
       }
 
@@ -87,7 +76,7 @@ export async function POST(req: Request) {
         .values({
           userId,
           reportType,
-          orderId: newOrder.id,
+          orderId: newOrder[0].id,
         })
         .onConflictDoNothing({
           target: [reportEntitlements.userId, reportEntitlements.reportType],
@@ -95,14 +84,14 @@ export async function POST(req: Request) {
 
       const existingPayment = await db.query.payments.findFirst({
         where: and(
-          eq(payments.orderId, newOrder.id),
+          eq(payments.orderId, newOrder[0].id),
           eq(payments.cashfreeOrderId, verification.order_id),
         ),
       });
 
       if (!existingPayment) {
         await db.insert(payments).values({
-          orderId: newOrder.id,
+          orderId: newOrder[0].id,
           cashfreeOrderId: verification.order_id,
           amount: verification.order_amount.toString(),
           currency: verification.order_currency,
@@ -118,7 +107,7 @@ export async function POST(req: Request) {
       await db
         .update(orders)
         .set({ status: "paid" })
-        .where(eq(orders.id, newOrder.id));
+        .where(eq(orders.id, newOrder[0].id));
 
       return NextResponse.json({ success: true, verified: true });
     } else {
