@@ -62,6 +62,10 @@ export default function CheckoutPage() {
         process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
           ? "production"
           : "sandbox";
+      if (!window.Cashfree) {
+        throw new Error("Cashfree SDK is unavailable");
+      }
+
       const cashfree = window.Cashfree({
         mode: cashfreeEnv,
       });

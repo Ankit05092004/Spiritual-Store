@@ -252,7 +252,7 @@ export default function ReportDetailPage() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               slug,
               customerPhone: formData.phone,
             }),
@@ -268,6 +268,9 @@ export default function ReportDetailPage() {
           process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
             ? "production"
             : "sandbox";
+        if (!window.Cashfree) {
+          throw new Error("Cashfree SDK is unavailable");
+        }
         const cashfree = window.Cashfree({ mode: cashfreeEnv });
 
         const checkoutOptions: CashfreeCheckoutOptions = {
@@ -531,8 +534,8 @@ export default function ReportDetailPage() {
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
-                      onClick={handleGenerateNewReport} 
+                    <Button
+                      onClick={handleGenerateNewReport}
                       variant="outline"
                       className="gap-2"
                     >
@@ -540,7 +543,9 @@ export default function ReportDetailPage() {
                       Generate New Report
                     </Button>
                     <Button onClick={handleDownloadPDF} className="gap-2">
-                      <span className="material-symbols-outlined">download</span>
+                      <span className="material-symbols-outlined">
+                        download
+                      </span>
                       Download PDF
                     </Button>
                   </div>
@@ -661,13 +666,17 @@ export default function ReportDetailPage() {
                         variant="ghost"
                         className="gap-2"
                       >
-                        <span className="material-symbols-outlined">arrow_back</span>
+                        <span className="material-symbols-outlined">
+                          arrow_back
+                        </span>
                         Back to Current Report
                       </Button>
                     </div>
                   )}
                   <h2 className="text-2xl font-serif font-bold mb-2">
-                    {showNewReportForm ? "Generate New Report" : "Generate Your Report"}
+                    {showNewReportForm
+                      ? "Generate New Report"
+                      : "Generate Your Report"}
                   </h2>
                   <p className="text-muted-foreground text-sm">
                     Enter your birth details for personalized predictions
@@ -709,7 +718,12 @@ export default function ReportDetailPage() {
                         pattern="[0-9]{10}"
                         value={formData.phone}
                         onChange={(e) =>
-                          setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })
+                          setFormData({
+                            ...formData,
+                            phone: e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 10),
+                          })
                         }
                       />
                     </div>
