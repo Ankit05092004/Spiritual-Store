@@ -21,7 +21,7 @@ const getReportDisplayName = (report: {
     return birthName;
   }
 
-  const typeLabel = report.reportType.replace("-", " ");
+  const typeLabel = report.reportType.replaceAll("-", " ");
   const birthDate = report.birthData?.dob;
 
   if (birthDate) {

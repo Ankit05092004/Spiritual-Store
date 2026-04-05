@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,15 +29,7 @@ export default function MyReportsPage() {
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      fetchReports();
-    } else if (isLoaded && !isSignedIn) {
-      setLoading(false);
-    }
-  }, [isLoaded, isSignedIn]);
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       const response = await fetch("/api/reports/user");
       if (!response.ok) {
@@ -51,7 +43,15 @@ export default function MyReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      fetchReports();
+    } else if (isLoaded && !isSignedIn) {
+      setLoading(false);
+    }
+  }, [fetchReports, isLoaded, isSignedIn]);
 
   const getReportTypeLabel = (type: string) => {
     switch (type) {
@@ -97,7 +97,9 @@ export default function MyReportsPage() {
             <span className="material-symbols-outlined text-6xl text-primary animate-spin">
               progress_activity
             </span>
-            <p className="text-muted-foreground mt-4">Loading your reports...</p>
+            <p className="text-muted-foreground mt-4">
+              Loading your reports...
+            </p>
           </div>
         </div>
         <Footer />
@@ -133,7 +135,7 @@ export default function MyReportsPage() {
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
-      
+
       {/* Hero Section */}
       <section className="pt-24 pb-12 px-6 bg-gradient-to-b from-primary/5 to-background">
         <div className="max-w-6xl mx-auto text-center">
@@ -162,7 +164,8 @@ export default function MyReportsPage() {
                 </span>
                 <h3 className="text-xl font-bold mb-2">No Reports Yet</h3>
                 <p className="text-muted-foreground mb-6">
-                  You haven&apos;t generated any astrology reports yet. Start by creating your first prediction report!
+                  You haven&apos;t generated any astrology reports yet. Start by
+                  creating your first prediction report!
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   <Link href="/reports/1-year-prediction">
@@ -214,7 +217,9 @@ export default function MyReportsPage() {
 
                     {/* Years Covered */}
                     <div className="mb-4">
-                      <p className="text-sm font-semibold mb-1">Years Covered:</p>
+                      <p className="text-sm font-semibold mb-1">
+                        Years Covered:
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         {report.years.join(", ")}
                       </p>
@@ -233,7 +238,9 @@ export default function MyReportsPage() {
                     </p>
 
                     {/* View Button */}
-                    <Link href={`/reports/${report.reportType}-prediction?reportId=${report.id}`}>
+                    <Link
+                      href={`/reports/${report.reportType}-prediction?reportId=${report.id}`}
+                    >
                       <Button className="w-full gap-2 group-hover:bg-primary/90">
                         <span className="material-symbols-outlined text-sm">
                           visibility
@@ -253,25 +260,26 @@ export default function MyReportsPage() {
               <CardContent className="p-8 text-center">
                 <h3 className="text-xl font-bold mb-2">Need Another Report?</h3>
                 <p className="text-muted-foreground mb-6">
-                  Generate a new prediction report with different birth details or duration
+                  Generate a new prediction report with different birth details
+                  or duration
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   <Link href="/reports/1-year-prediction">
                     <Button variant="outline" className="gap-2">
-                      <span className="material-symbols-outlined">add</span>
-                      1 Year Report
+                      <span className="material-symbols-outlined">add</span>1
+                      Year Report
                     </Button>
                   </Link>
                   <Link href="/reports/3-year-prediction">
                     <Button variant="outline" className="gap-2">
-                      <span className="material-symbols-outlined">add</span>
-                      3 Year Report
+                      <span className="material-symbols-outlined">add</span>3
+                      Year Report
                     </Button>
                   </Link>
                   <Link href="/reports/5-year-prediction">
                     <Button variant="outline" className="gap-2">
-                      <span className="material-symbols-outlined">add</span>
-                      5 Year Report
+                      <span className="material-symbols-outlined">add</span>5
+                      Year Report
                     </Button>
                   </Link>
                 </div>

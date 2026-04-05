@@ -3,8 +3,25 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { orders, payments, reportEntitlements } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { slugToReportType } from "@/lib/report-pricing";
+import { getReportPrice, slugToReportType } from "@/lib/report-pricing";
 import { verifyCashfreePayment } from "@/lib/cashfree";
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const maskIdentifier = (value: string) => {
+  if (!value || value.length <= 4) {
+    return "****";
+  }
+  return `${value.slice(0, 2)}****${value.slice(-2)}`;
+};
+
+const logger = {
+  debug: (message: string, meta?: Record<string, unknown>) => {
+    if (!isProduction) {
+      console.info(message, meta);
+    }
+  },
+};
 
 export async function POST(req: Request) {
   try {
@@ -24,6 +41,11 @@ export async function POST(req: Request) {
 
     const reportType = slugToReportType(slug);
     const verification = await verifyCashfreePayment(orderId);
+    const expectedPrice = getReportPrice(slug);
+
+    if (Number(verification.order_amount) !== expectedPrice) {
+      throw new Error("Payment amount does not match expected report price");
+    }
 
     if (verification.payment_status === "SUCCESS") {
       const [newOrder] = await db
@@ -76,10 +98,10 @@ export async function POST(req: Request) {
         throw new Error("Failed to create or load order");
       }
 
-      console.log("Order created/loaded successfully:", {
-        orderId: newOrder.id,
-        cashfreeOrderId: orderId,
-        userId,
+      logger.debug("Order created/loaded successfully", {
+        orderId: isProduction ? maskIdentifier(newOrder.id) : newOrder.id,
+        cashfreeOrderId: isProduction ? maskIdentifier(orderId) : orderId,
+        userId: isProduction ? maskIdentifier(userId) : userId,
       });
 
       // 2. Grant report entitlement

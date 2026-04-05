@@ -717,14 +717,19 @@ export default function ReportDetailPage() {
                         required
                         pattern="[0-9]{10}"
                         value={formData.phone}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, "");
+                          const withoutCountryCode =
+                            digitsOnly.startsWith("91") &&
+                            digitsOnly.length > 10
+                              ? digitsOnly.slice(2)
+                              : digitsOnly;
+
                           setFormData({
                             ...formData,
-                            phone: e.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 10),
-                          })
-                        }
+                            phone: withoutCountryCode.slice(0, 10),
+                          });
+                        }}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">

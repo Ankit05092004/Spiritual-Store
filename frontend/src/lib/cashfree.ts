@@ -34,7 +34,12 @@ const getCashfreeHeaders = () => {
 };
 
 const getCashfreeBaseUrl = () => {
-  return process.env.CASHFREE_ENV === "production"
+  const cashfreeEnv =
+    process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
+      ? "production"
+      : "sandbox";
+
+  return cashfreeEnv === "production"
     ? "https://api.cashfree.com/pg"
     : "https://sandbox.cashfree.com/pg";
 };
