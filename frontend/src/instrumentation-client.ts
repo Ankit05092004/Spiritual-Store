@@ -4,9 +4,14 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN;
-const tracesSampleRate = Number(
+// Client runtime can only read NEXT_PUBLIC_ env vars.
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+const parsedClientRate = parseFloat(
   process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? "0",
+);
+const tracesSampleRate = Math.min(
+  1,
+  Math.max(0, Number.isFinite(parsedClientRate) ? parsedClientRate : 0),
 );
 const enableSentryLogs = process.env.NEXT_PUBLIC_SENTRY_ENABLE_LOGS === "true";
 

@@ -19,7 +19,8 @@ import {
   ReportDuration,
 } from "@/lib/astrology-reports";
 
-type EntitlementReportType = (typeof reportEntitlements.$inferSelect)["reportType"];
+type EntitlementReportType =
+  (typeof reportEntitlements.$inferSelect)["reportType"];
 
 const REPORT_TYPE_BY_DURATION: Record<ReportDuration, EntitlementReportType> = {
   1: "1-year",
@@ -113,11 +114,8 @@ export async function POST(request: NextRequest) {
 
     const reportType = REPORT_TYPE_BY_DURATION[body.duration];
 
-    // Generate the report (deterministic)
-    const report = generateReport(profile, body.duration);
-
     // Lock, consume entitlement, and persist report atomically to prevent double-spend.
-    const savedReport = await db.transaction(async (tx) => {
+    const transactionResult = await db.transaction(async (tx) => {
       const [entitlement] = await tx
         .select({
           id: reportEntitlements.id,
@@ -136,6 +134,9 @@ export async function POST(request: NextRequest) {
       if (!entitlement) {
         return null;
       }
+
+      // Generate only after entitlement is locked and confirmed.
+      const report = generateReport(profile, body.duration);
 
       // Keep deterministic content but make each paid generation a unique persisted record.
       const cacheKey = `${generateCacheKey(profile, body.duration)}:${entitlement.id}`;
@@ -166,10 +167,13 @@ export async function POST(request: NextRequest) {
         .delete(reportEntitlements)
         .where(eq(reportEntitlements.id, entitlement.id));
 
-      return insertedReport;
+      return {
+        report: insertedReport.reportData,
+        reportId: insertedReport.id,
+      };
     });
 
-    if (!savedReport) {
+    if (!transactionResult) {
       return NextResponse.json(
         {
           error:
@@ -182,8 +186,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       fromCache: false,
-      reportId: savedReport.id,
-      report,
+      reportId: transactionResult.reportId,
+      report: transactionResult.report,
     });
   } catch (error) {
     console.error("Report generation error:", error);

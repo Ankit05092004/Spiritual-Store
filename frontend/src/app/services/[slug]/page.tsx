@@ -53,59 +53,57 @@ export default function ServiceDetailPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch all service pages to avoid missing slugs beyond the first page.
-        const limit = 100;
-        let page = 1;
-        let totalPages = 1;
-        const services: Service[] = [];
-
-        while (page <= totalPages && !controller.signal.aborted) {
-          const res = await fetch(
-            `/api/products?type=service&limit=${limit}&page=${page}`,
+        const [serviceRes, servicesRes] = await Promise.all([
+          fetch(
+            `/api/products?type=service&slug=${encodeURIComponent(slug)}&limit=1`,
             {
               signal: controller.signal,
             },
-          );
+          ),
+          fetch(`/api/products?type=service&limit=100`, {
+            signal: controller.signal,
+          }),
+        ]);
 
-          if (!res.ok) {
-            setError("Failed to load services");
-            setService(null);
-            return;
-          }
-
-          const data = await res.json();
-          const pageServices: Service[] = data.products || [];
-          services.push(...pageServices);
-
-          const nextTotalPages = Number(data?.pagination?.totalPages || 1);
-          totalPages = Number.isFinite(nextTotalPages) && nextTotalPages > 0
-            ? nextTotalPages
-            : 1;
-          page += 1;
+        if (!serviceRes.ok) {
+          setError("Failed to load service");
+          setService(null);
+          return;
         }
 
-          const found = services.find((s) => s.slug === slug);
+        const serviceData = await serviceRes.json();
+        const foundService: Service | undefined = serviceData?.products?.[0];
 
-          if (!found) {
-            setError("Service Not Found");
-            setService(null);
-          } else {
-            setService(found);
-          }
+        if (!foundService) {
+          setError("Service Not Found");
+          setService(null);
+          return;
+        }
 
-          // Filter related and premium services
-          setRelatedServices(
-            services
-              .filter(
-                (s) =>
-                  s.slug !== slug &&
-                  !["sampurna-kundali", "monthly-kundali"].includes(s.slug),
-              )
-              .slice(0, 4),
-          );
-          setPremiumServices(
-            services.filter((s) => ["sampurna-kundali"].includes(s.slug)),
-          );
+        setService(foundService);
+
+        if (!servicesRes.ok) {
+          setRelatedServices([]);
+          setPremiumServices([]);
+          return;
+        }
+
+        const servicesData = await servicesRes.json();
+        const services: Service[] = servicesData.products || [];
+
+        // Filter related and premium services
+        setRelatedServices(
+          services
+            .filter(
+              (s) =>
+                s.slug !== slug &&
+                !["sampurna-kundali", "monthly-kundali"].includes(s.slug),
+            )
+            .slice(0, 4),
+        );
+        setPremiumServices(
+          services.filter((s) => ["sampurna-kundali"].includes(s.slug)),
+        );
       } catch (error: any) {
         if (error.name !== "AbortError") {
           console.error("Failed to fetch service", error);
