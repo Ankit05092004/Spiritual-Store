@@ -14,9 +14,14 @@ const tracesSampleRate = Math.min(
   Math.max(0, Number.isFinite(parsedClientRate) ? parsedClientRate : 0),
 );
 const enableSentryLogs = process.env.NEXT_PUBLIC_SENTRY_ENABLE_LOGS === "true";
+const sentryEnvironment =
+  process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV;
 
 Sentry.init({
   dsn: sentryDsn,
+  enabled: Boolean(sentryDsn),
+  environment: sentryEnvironment,
+  release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate,
