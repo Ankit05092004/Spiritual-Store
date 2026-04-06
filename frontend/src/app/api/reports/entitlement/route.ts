@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db, reportEntitlements } from "@/db";
+import * as Sentry from "@sentry/nextjs";
 import { eq, and } from "drizzle-orm";
 import { isReportSlug, slugToReportType } from "@/lib/report-pricing";
 
@@ -41,6 +42,10 @@ export async function GET(req: Request) {
       hasEntitlement: !!entitlement,
     });
   } catch (error: unknown) {
+    Sentry.captureException(error, {
+      tags: { endpoint: "reports-entitlement" },
+      extra: { route: "/api/reports/entitlement" },
+    });
     console.error(
       "Entitlement check error:",
       error instanceof Error ? error.message : String(error),
