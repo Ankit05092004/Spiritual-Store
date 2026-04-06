@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db, astrologyReports, reportEntitlements } from "@/db";
+import * as Sentry from "@sentry/nextjs";
 import { and, eq } from "drizzle-orm";
 import {
   generateReport,
@@ -190,6 +191,10 @@ export async function POST(request: NextRequest) {
       report: transactionResult.report,
     });
   } catch (error) {
+    Sentry.captureException(error, {
+      tags: { endpoint: "reports-generate" },
+      extra: { route: "/api/reports/generate" },
+    });
     console.error("Report generation error:", error);
     return NextResponse.json(
       { error: "Failed to generate report" },

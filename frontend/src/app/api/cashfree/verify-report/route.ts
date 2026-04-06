@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { orders, payments, reportEntitlements } from "@/db/schema";
+import * as Sentry from "@sentry/nextjs";
 import { and, eq } from "drizzle-orm";
 import { getReportPrice, slugToReportType } from "@/lib/report-pricing";
 import { verifyCashfreePayment } from "@/lib/cashfree";
@@ -152,6 +153,10 @@ export async function POST(req: Request) {
       });
     }
   } catch (error: unknown) {
+    Sentry.captureException(error, {
+      tags: { endpoint: "cashfree-verify-report" },
+      extra: { route: "/api/cashfree/verify-report" },
+    });
     console.error("Report payment verification error:", error);
     return NextResponse.json({ error: "Verification failed" }, { status: 500 });
   }
