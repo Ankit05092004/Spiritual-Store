@@ -3,22 +3,21 @@
  *
  * POST /api/reports/generate
  *
- * Generates deterministic astrology reports based on birth chart data.
- * Checks database for cached reports first to avoid regeneration.
+ * Generates astrology reports based on birth chart data.
+ * Requires a paid entitlement token and consumes it after generation.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { astrologyReports } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { astrologyReports, reportEntitlements } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import {
   generateReport,
   createProfile,
   validateProfile,
   generateCacheKey,
   ReportDuration,
-  AstrologyReport,
 } from "@/lib/astrology-reports";
 
 interface GenerateReportRequest {
@@ -105,54 +104,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate cache key for deterministic lookup
-    const cacheKey = generateCacheKey(profile, body.duration);
-
-    // Check if report already exists in database
-    const existingReport = await db.query.astrologyReports.findFirst({
-      where: eq(astrologyReports.cacheKey, cacheKey),
-    });
-
-    if (existingReport) {
-      // Return cached report
-      return NextResponse.json({
-        success: true,
-        fromCache: true,
-        reportId: existingReport.id,
-        report: existingReport.reportData as AstrologyReport,
-      });
-    }
-
-    // Generate the report (deterministic)
-    const report = generateReport(profile, body.duration);
-
-    // Store in database
     const reportType = `${body.duration}-year` as
       | "1-year"
       | "3-year"
       | "5-year";
 
-    const [savedReport] = await db
-      .insert(astrologyReports)
-      .values({
-        userId,
-        orderId: body.orderId,
-        reportType,
-        birthData: {
-          dob: profile.dob,
-          name: profile.name,
-          sunSign: profile.sunSign,
-          moonSign: profile.moonSign,
-          ascendant: profile.ascendant,
-          planetaryHouses: profile.planetaryHouses,
-          planetarySigns: profile.planetarySigns,
-          currentDasha: profile.currentDasha,
-          upcomingDashas: profile.upcomingDashas,
+    // Enforce one paid generation per entitlement token.
+    const entitlement = await db.query.reportEntitlements.findFirst({
+      where: and(
+        eq(reportEntitlements.userId, userId),
+        eq(reportEntitlements.reportType, reportType),
+      ),
+    });
+
+    if (!entitlement) {
+      return NextResponse.json(
+        {
+          error:
+            "Payment required. Please complete payment before generating this report.",
         },
-        reportData: report,
-        cacheKey,
-      })
-      .returning();
+        { status: 402 },
+      );
+    }
+
+    // Keep deterministic content but make each paid generation a unique persisted record.
+    const cacheKey = `${generateCacheKey(profile, body.duration)}:${entitlement.id}`;
+
+    // Generate the report (deterministic)
+    const report = generateReport(profile, body.duration);
+
+    // Store in database
+    const savedReport = await db.transaction(async (tx) => {
+      const [insertedReport] = await tx
+        .insert(astrologyReports)
+        .values({
+          userId,
+          orderId: entitlement.orderId ?? body.orderId,
+          reportType,
+          birthData: {
+            dob: profile.dob,
+            name: profile.name,
+            sunSign: profile.sunSign,
+            moonSign: profile.moonSign,
+            ascendant: profile.ascendant,
+            planetaryHouses: profile.planetaryHouses,
+            planetarySigns: profile.planetarySigns,
+            currentDasha: profile.currentDasha,
+            upcomingDashas: profile.upcomingDashas,
+          },
+          reportData: report,
+          cacheKey,
+        })
+        .returning();
+
+      await tx
+        .delete(reportEntitlements)
+        .where(eq(reportEntitlements.id, entitlement.id));
+
+      return insertedReport;
+    });
 
     return NextResponse.json({
       success: true,

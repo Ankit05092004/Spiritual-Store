@@ -54,7 +54,7 @@ export default function ServiceDetailPage() {
         setError(null);
 
         // Fetch target service directly
-        const res = await fetch(`/api/products?type=service`, {
+        const res = await fetch(`/api/products?type=service&limit=100`, {
           signal: controller.signal,
         });
 
