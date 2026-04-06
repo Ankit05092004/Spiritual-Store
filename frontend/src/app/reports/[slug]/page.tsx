@@ -19,7 +19,6 @@ import {
   ExtendedAstrologyReport,
 } from "@/lib/astrology-reports";
 import { loadCashfreeScript } from "@/lib/cashfree-client";
-import { getReportPrice } from "@/lib/report-pricing";
 import type {
   CashfreeCheckoutOptions,
   CashfreeCheckoutResult,
@@ -189,89 +188,72 @@ export default function ReportDetailPage() {
     setLoading(true);
 
     try {
-      // 1. Check if user has entitlement for this report explicitly
-      const entitCheck = await fetch(`/api/reports/entitlement?slug=${slug}`);
-      if (!entitCheck.ok) {
-        throw new Error("Failed to check entitlement");
-      }
-
-      const entitData = (await entitCheck.json()) as {
-        hasEntitlement?: boolean;
-      };
-
-      if (entitData.hasEntitlement !== true) {
-        // User needs to pay. Load Cashfree Payment.
-        const loaded = await loadCashfreeScript();
-        if (!loaded) {
-          toast.error("Failed to load payment gateway");
-          return;
-        }
-
-        const createOrderRes = await fetch(
-          "/api/cashfree/create-report-order",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              slug,
-              customerPhone: formData.phone,
-            }),
-          },
-        );
-
-        if (!createOrderRes.ok) {
-          throw new Error("Failed to create report payment order");
-        }
-
-        const orderData = await createOrderRes.json();
-        const cashfreeEnv =
-          process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
-            ? "production"
-            : "sandbox";
-        if (!window.Cashfree) {
-          throw new Error("Cashfree SDK is unavailable");
-        }
-        const cashfree = window.Cashfree({ mode: cashfreeEnv });
-
-        const checkoutOptions: CashfreeCheckoutOptions = {
-          paymentSessionId: orderData.payment_session_id,
-          redirectTarget: "_modal",
-        };
-
-        const result: CashfreeCheckoutResult =
-          await cashfree.checkout(checkoutOptions);
-
-        if (result.error) {
-          toast.error("Payment was cancelled or failed");
-          return;
-        }
-
-        if (result.paymentDetails) {
-          const verifyRes = await fetch("/api/cashfree/verify-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: orderData.order_id, slug }),
-          });
-          if (verifyRes.ok) {
-            const verData = await verifyRes.json();
-            if (verData.verified) {
-              toast.success("Payment successful! Generating your report...");
-              await generateReportData();
-            } else {
-              toast.error("Payment verification failed");
-            }
-          } else {
-            toast.error("Payment verification failed from server");
-          }
-          return;
-        }
-
-        toast.error("Payment was not completed. Please try again.");
+      // Always trigger payment before report generation.
+      const loaded = await loadCashfreeScript();
+      if (!loaded) {
+        toast.error("Failed to load payment gateway");
         return;
       }
 
-      // If entitled, proceed contextually directly:
-      await generateReportData();
+      const createOrderRes = await fetch("/api/cashfree/create-report-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          customerPhone: formData.phone,
+        }),
+      });
+
+      if (!createOrderRes.ok) {
+        throw new Error("Failed to create report payment order");
+      }
+
+      const orderData = await createOrderRes.json();
+      const cashfreeEnv =
+        process.env.NEXT_PUBLIC_CASHFREE_ENV === "production"
+          ? "production"
+          : "sandbox";
+
+      if (!window.Cashfree) {
+        throw new Error("Cashfree SDK is unavailable");
+      }
+
+      const cashfree = window.Cashfree({ mode: cashfreeEnv });
+      const checkoutOptions: CashfreeCheckoutOptions = {
+        paymentSessionId: orderData.payment_session_id,
+        redirectTarget: "_modal",
+      };
+
+      const result: CashfreeCheckoutResult =
+        await cashfree.checkout(checkoutOptions);
+
+      if (result.error) {
+        toast.error("Payment was cancelled or failed");
+        return;
+      }
+
+      if (result.paymentDetails) {
+        const verifyRes = await fetch("/api/cashfree/verify-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: orderData.order_id, slug }),
+        });
+
+        if (verifyRes.ok) {
+          const verData = await verifyRes.json();
+          if (verData.verified) {
+            toast.success("Payment successful! Generating your report...");
+            await generateReportData();
+          } else {
+            toast.error("Payment verification failed");
+          }
+        } else {
+          toast.error("Payment verification failed from server");
+        }
+        return;
+      }
+
+      toast.error("Payment was not completed. Please try again.");
     } catch (error) {
       console.error("Error:", error);
       toast.error("Something went wrong. Please try again.");
