@@ -19,6 +19,7 @@ import {
   ExtendedAstrologyReport,
 } from "@/lib/astrology-reports";
 import { loadCashfreeScript } from "@/lib/cashfree-client";
+import { getReportPrice } from "@/lib/report-pricing";
 import type {
   CashfreeCheckoutOptions,
   CashfreeCheckoutResult,
