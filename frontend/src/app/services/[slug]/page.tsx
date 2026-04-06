@@ -53,40 +53,57 @@ export default function ServiceDetailPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch target service directly
-        const res = await fetch(`/api/products?type=service`, {
-          signal: controller.signal,
-        });
+        const [serviceRes, servicesRes] = await Promise.all([
+          fetch(
+            `/api/products?type=service&slug=${encodeURIComponent(slug)}&limit=1`,
+            {
+              signal: controller.signal,
+            },
+          ),
+          fetch(`/api/products?type=service&limit=100`, {
+            signal: controller.signal,
+          }),
+        ]);
 
-        if (res.ok) {
-          const data = await res.json();
-          const services: Service[] = data.products || [];
-
-          const found = services.find((s) => s.slug === slug);
-
-          if (!found) {
-            setError("Service Not Found");
-            setService(null);
-          } else {
-            setService(found);
-          }
-
-          // Filter related and premium services
-          setRelatedServices(
-            services
-              .filter(
-                (s) =>
-                  s.slug !== slug &&
-                  !["sampurna-kundali", "monthly-kundali"].includes(s.slug),
-              )
-              .slice(0, 4),
-          );
-          setPremiumServices(
-            services.filter((s) => ["sampurna-kundali"].includes(s.slug)),
-          );
-        } else {
-          setError("Failed to load services");
+        if (!serviceRes.ok) {
+          setError("Failed to load service");
+          setService(null);
+          return;
         }
+
+        const serviceData = await serviceRes.json();
+        const foundService: Service | undefined = serviceData?.products?.[0];
+
+        if (!foundService) {
+          setError("Service Not Found");
+          setService(null);
+          return;
+        }
+
+        setService(foundService);
+
+        if (!servicesRes.ok) {
+          setRelatedServices([]);
+          setPremiumServices([]);
+          return;
+        }
+
+        const servicesData = await servicesRes.json();
+        const services: Service[] = servicesData.products || [];
+
+        // Filter related and premium services
+        setRelatedServices(
+          services
+            .filter(
+              (s) =>
+                s.slug !== slug &&
+                !["sampurna-kundali", "monthly-kundali"].includes(s.slug),
+            )
+            .slice(0, 4),
+        );
+        setPremiumServices(
+          services.filter((s) => ["sampurna-kundali"].includes(s.slug)),
+        );
       } catch (error: any) {
         if (error.name !== "AbortError") {
           console.error("Failed to fetch service", error);

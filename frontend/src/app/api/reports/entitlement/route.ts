@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { reportEntitlements, astrologyReports } from "@/db/schema";
+import { db, reportEntitlements } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { isReportSlug, slugToReportType } from "@/lib/report-pricing";
 
@@ -31,23 +30,15 @@ export async function GET(req: Request) {
 
     const reportType = slugToReportType(slug);
 
-    const [entitlement, existingReport] = await Promise.all([
-      db.query.reportEntitlements.findFirst({
-        where: and(
-          eq(reportEntitlements.userId, userId),
-          eq(reportEntitlements.reportType, reportType),
-        ),
-      }),
-      db.query.astrologyReports.findFirst({
-        where: and(
-          eq(astrologyReports.userId, userId),
-          eq(astrologyReports.reportType, reportType),
-        ),
-      }),
-    ]);
+    const entitlement = await db.query.reportEntitlements.findFirst({
+      where: and(
+        eq(reportEntitlements.userId, userId),
+        eq(reportEntitlements.reportType, reportType),
+      ),
+    });
 
     return NextResponse.json({
-      hasEntitlement: !!entitlement || !!existingReport,
+      hasEntitlement: !!entitlement,
     });
   } catch (error: unknown) {
     console.error(

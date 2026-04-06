@@ -108,12 +108,10 @@ export default function ReportDetailPage() {
     location: "",
   });
   const [loading, setLoading] = useState(false);
-  const [loadingCached, setLoadingCached] = useState(true);
 
   // Generated report state
   const [generatedReport, setGeneratedReport] =
     useState<AstrologyReport | null>(null);
-  const [reportId, setReportId] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
   const [showNewReportForm, setShowNewReportForm] = useState(false);
   const [birthCharts, setBirthCharts] = useState<{
@@ -128,44 +126,6 @@ export default function ReportDetailPage() {
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingLocation, setSearchingLocation] = useState(false);
-
-  const checkCachedReport = useCallback(async () => {
-    try {
-      const response = await fetch("/api/reports/user");
-      if (!response.ok) {
-        setLoadingCached(false);
-        return;
-      }
-      const data = await response.json();
-      // Find a report matching this duration
-      const matchingReport = data.reports?.find(
-        (r: { reportType: string }) =>
-          r.reportType === `${report?.duration}-year`,
-      );
-      if (matchingReport) {
-        // Fetch the full report
-        const fullReportRes = await fetch(`/api/reports/${matchingReport.id}`);
-        if (fullReportRes.ok) {
-          const fullData = await fullReportRes.json();
-          setGeneratedReport(fullData.report.reportData);
-          setReportId(fullData.report.id);
-          setFromCache(true);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to check cached report:", error);
-    } finally {
-      setLoadingCached(false);
-    }
-  }, [report?.duration]);
-
-  useEffect(() => {
-    if (isSignedIn && report) {
-      checkCachedReport();
-    } else {
-      setLoadingCached(false);
-    }
-  }, [isSignedIn, report, checkCachedReport]);
   // Location search
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 3) {
@@ -405,7 +365,6 @@ export default function ReportDetailPage() {
       }
 
       setGeneratedReport(data.report);
-      setReportId(data.reportId);
       setFromCache(data.fromCache);
       setShowNewReportForm(false); // Hide form after generating
       toast.success(
