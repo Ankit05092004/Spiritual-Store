@@ -53,14 +53,36 @@ export default function ServiceDetailPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch target service directly
-        const res = await fetch(`/api/products?type=service&limit=100`, {
-          signal: controller.signal,
-        });
+        // Fetch all service pages to avoid missing slugs beyond the first page.
+        const limit = 100;
+        let page = 1;
+        let totalPages = 1;
+        const services: Service[] = [];
 
-        if (res.ok) {
+        while (page <= totalPages && !controller.signal.aborted) {
+          const res = await fetch(
+            `/api/products?type=service&limit=${limit}&page=${page}`,
+            {
+              signal: controller.signal,
+            },
+          );
+
+          if (!res.ok) {
+            setError("Failed to load services");
+            setService(null);
+            return;
+          }
+
           const data = await res.json();
-          const services: Service[] = data.products || [];
+          const pageServices: Service[] = data.products || [];
+          services.push(...pageServices);
+
+          const nextTotalPages = Number(data?.pagination?.totalPages || 1);
+          totalPages = Number.isFinite(nextTotalPages) && nextTotalPages > 0
+            ? nextTotalPages
+            : 1;
+          page += 1;
+        }
 
           const found = services.find((s) => s.slug === slug);
 
@@ -84,9 +106,6 @@ export default function ServiceDetailPage() {
           setPremiumServices(
             services.filter((s) => ["sampurna-kundali"].includes(s.slug)),
           );
-        } else {
-          setError("Failed to load services");
-        }
       } catch (error: any) {
         if (error.name !== "AbortError") {
           console.error("Failed to fetch service", error);

@@ -9,8 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { astrologyReports, reportEntitlements } from "@/db/schema";
+import { db, astrologyReports, reportEntitlements } from "@/db";
 import { and, eq } from "drizzle-orm";
 import {
   generateReport,
@@ -19,6 +18,14 @@ import {
   generateCacheKey,
   ReportDuration,
 } from "@/lib/astrology-reports";
+
+type EntitlementReportType = (typeof reportEntitlements.$inferSelect)["reportType"];
+
+const REPORT_TYPE_BY_DURATION: Record<ReportDuration, EntitlementReportType> = {
+  1: "1-year",
+  3: "3-year",
+  5: "5-year",
+};
 
 interface GenerateReportRequest {
   /** Date of birth (YYYY-MM-DD) */
@@ -104,42 +111,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reportType = `${body.duration}-year` as
-      | "1-year"
-      | "3-year"
-      | "5-year";
-
-    // Enforce one paid generation per entitlement token.
-    const entitlement = await db.query.reportEntitlements.findFirst({
-      where: and(
-        eq(reportEntitlements.userId, userId),
-        eq(reportEntitlements.reportType, reportType),
-      ),
-    });
-
-    if (!entitlement) {
-      return NextResponse.json(
-        {
-          error:
-            "Payment required. Please complete payment before generating this report.",
-        },
-        { status: 402 },
-      );
-    }
-
-    // Keep deterministic content but make each paid generation a unique persisted record.
-    const cacheKey = `${generateCacheKey(profile, body.duration)}:${entitlement.id}`;
+    const reportType = REPORT_TYPE_BY_DURATION[body.duration];
 
     // Generate the report (deterministic)
     const report = generateReport(profile, body.duration);
 
-    // Store in database
+    // Lock, consume entitlement, and persist report atomically to prevent double-spend.
     const savedReport = await db.transaction(async (tx) => {
+      const [entitlement] = await tx
+        .select({
+          id: reportEntitlements.id,
+          orderId: reportEntitlements.orderId,
+        })
+        .from(reportEntitlements)
+        .where(
+          and(
+            eq(reportEntitlements.userId, userId),
+            eq(reportEntitlements.reportType, reportType),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!entitlement) {
+        return null;
+      }
+
+      // Keep deterministic content but make each paid generation a unique persisted record.
+      const cacheKey = `${generateCacheKey(profile, body.duration)}:${entitlement.id}`;
+
       const [insertedReport] = await tx
         .insert(astrologyReports)
         .values({
           userId,
-          orderId: entitlement.orderId ?? body.orderId,
+          orderId: entitlement.orderId,
           reportType,
           birthData: {
             dob: profile.dob,
@@ -163,6 +168,16 @@ export async function POST(request: NextRequest) {
 
       return insertedReport;
     });
+
+    if (!savedReport) {
+      return NextResponse.json(
+        {
+          error:
+            "Payment required. Please complete payment before generating this report.",
+        },
+        { status: 402 },
+      );
+    }
 
     return NextResponse.json({
       success: true,

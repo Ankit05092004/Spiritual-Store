@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { reportEntitlements } from "@/db/schema";
+import { db, reportEntitlements } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { isReportSlug, slugToReportType } from "@/lib/report-pricing";
 
