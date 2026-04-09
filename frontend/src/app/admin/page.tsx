@@ -1,6 +1,16 @@
+import { redirect } from "next/navigation";
+import { currentUser } from "@clerk/nextjs/server";
 import AdminLayout from "@/components/admin/admin-layout";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  // Check admin role server-side
+  const user = await currentUser();
+  const isAdmin = user && (user.privateMetadata as any)?.role === "admin";
+
+  if (!isAdmin) {
+    redirect("/");
+  }
+
   return (
     <AdminLayout>
       <div className="p-8">

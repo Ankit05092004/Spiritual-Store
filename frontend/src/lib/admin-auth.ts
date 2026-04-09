@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 /**
@@ -7,14 +7,14 @@ import { NextResponse } from "next/server";
  */
 export async function isUserAdmin(): Promise<boolean> {
   try {
-    const { userId, sessionClaims } = await auth();
+    const user = await currentUser();
     
-    if (!userId) {
+    if (!user) {
       return false;
     }
 
-    // Access private metadata from session claims
-    const privateMetadata = (sessionClaims?.metadata as any)?.private || {};
+    // Access private metadata directly from user object
+    const privateMetadata = (user.privateMetadata as any) || {};
     return privateMetadata.role === "admin";
   } catch (error) {
     console.error("Error checking admin status:", error);
@@ -51,6 +51,12 @@ export async function protectAdminRoute(): Promise<NextResponse | null> {
  * Get current user's admin metadata
  */
 export async function getAdminMetadata() {
-  const { sessionClaims } = await auth();
-  return (sessionClaims?.metadata as any)?.private || {};
+  try {
+    const user = await currentUser();
+    if (!user) return {};
+    return (user.privateMetadata as any) || {};
+  } catch (error) {
+    console.error("Error fetching admin metadata:", error);
+    return {};
+  }
 }
