@@ -50,58 +50,111 @@ Now this user can access `/admin` routes.
 All endpoints require admin role verification.
 
 #### Products Listing
-```
+
+```bash
 GET /api/admin/products
-Response: [ { id, title, price, stock, productType, ... } ]
+```
+
+Response:
+
+```json
+[{ "id": "...", "title": "...", "price": "...", "stock": 0, "productType": "..." }]
 ```
 
 #### Get Product Details
-```
+
+```bash
 GET /api/admin/products/[id]
-Response: { id, title, description, price, stock, ... }
+```
+
+Response:
+
+```json
+{ "id": "...", "title": "...", "description": "...", "price": "...", "stock": 0 }
 ```
 
 #### Create Product
-```
+
+```bash
 POST /api/admin/products
-Body: {
-  title: string (required),
-  description: string,
-  price: string (required),
-  originalPrice: string,
-  stock: number,
-  productType: "product" | "service",
-  isLabCertified: boolean
+```
+
+Body:
+
+```json
+{
+  "title": "string (required)",
+  "description": "string",
+  "price": "string (required)",
+  "originalPrice": "string",
+  "stock": 0,
+  "productType": "product | service",
+  "isLabCertified": false
 }
-Response: { id, title, price, stock, ... }
+```
+
+Response:
+
+```json
+{ "id": "...", "title": "...", "price": "...", "stock": 0 }
 ```
 
 #### Update Product
-```
+
+```bash
 PUT /api/admin/products/[id]
-Body: { title, description, price, originalPrice, stock, productType, isLabCertified }
-Response: { id, title, ... }
+```
+
+Body:
+
+```json
+{
+  "title": "...",
+  "description": "...",
+  "price": "...",
+  "originalPrice": "...",
+  "stock": 0,
+  "productType": "...",
+  "isLabCertified": false
+}
 ```
 
 #### Delete Product
-```
+
+```bash
 DELETE /api/admin/products/[id]
-Response: { success: true, message: "Product deleted successfully" }
+```
+
+Response:
+
+```json
+{ "success": true, "message": "Product deleted successfully" }
 ```
 
 #### Adjust Stock
-```
+
+```bash
 PATCH /api/admin/products/[id]/stock
-Body: {
-  action: "add" | "subtract" | "set",
-  quantity: number
+```
+
+Body:
+
+```json
+{
+  "action": "add | subtract | set",
+  "quantity": 0
 }
-Response: { 
-  success: true, 
-  productId, 
-  previousStock, 
-  newStock, 
-  action 
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "productId": "...",
+  "previousStock": 0,
+  "newStock": 0,
+  "action": "..."
 }
 ```
 
@@ -162,6 +215,7 @@ New packages added:
 ## Development
 
 ### Running Locally
+
 ```bash
 cd frontend
 npm run dev
@@ -170,12 +224,15 @@ npm run dev
 Navigate to `http://localhost:3000/admin` to access the dashboard.
 
 ### Building
+
 ```bash
 npm run build
 ```
 
 ### Environment Variables
+
 Ensure these are set in `.env.local`:
+
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
 - `DATABASE_URL`

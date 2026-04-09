@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   ColumnDef,
   flexRender,
@@ -20,6 +20,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   isLoading?: boolean;
   onRowClick?: (row: TData) => void;
+  searchPlaceholder?: string;
+  emptyStateMessage?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -27,6 +29,8 @@ export function DataTable<TData, TValue>({
   data,
   isLoading = false,
   onRowClick,
+  searchPlaceholder = "Search...",
+  emptyStateMessage = "No items found",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -65,7 +69,7 @@ export function DataTable<TData, TValue>({
       <div className="relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
         <input
-          placeholder="Search products..."
+          placeholder={searchPlaceholder}
           value={globalFilter}
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -134,7 +138,7 @@ export function DataTable<TData, TValue>({
 
         {table.getRowModel().rows.length === 0 && (
           <div className="flex items-center justify-center py-8 text-slate-400">
-            No products found
+            {emptyStateMessage}
           </div>
         )}
       </div>

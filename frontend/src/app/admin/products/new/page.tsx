@@ -12,12 +12,9 @@ interface ProductForm {
   title: string;
   description: string;
   price: string;
-  originalPrice?: string;
+  originalPrice: string;
   stock: number;
   productType: "product" | "service";
-  categoryId?: string;
-  benefits: string[];
-  zodiacCompatibility: string[];
   isLabCertified: boolean;
 }
 
@@ -28,9 +25,6 @@ const initialForm: ProductForm = {
   originalPrice: "",
   stock: 0,
   productType: "product",
-  categoryId: "",
-  benefits: [],
-  zodiacCompatibility: [],
   isLabCertified: false,
 };
 
@@ -52,7 +46,10 @@ export default function NewProductPage() {
         body: JSON.stringify(form),
       });
 
-      if (!response.ok) throw new Error("Failed to create product");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to create product");
+      }
       router.push("/admin/products");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create product");
@@ -191,7 +188,9 @@ export default function NewProductPage() {
           {/* Buttons */}
           <div className="flex gap-4 pt-6 border-t border-slate-700">
             <Link href="/admin/products">
-              <Button variant="outline">Cancel</Button>
+              <Button asChild variant="outline">
+                <span>Cancel</span>
+              </Button>
             </Link>
             <Button
               type="submit"

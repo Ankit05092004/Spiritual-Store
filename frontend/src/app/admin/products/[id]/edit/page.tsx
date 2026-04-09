@@ -12,12 +12,9 @@ interface ProductForm {
   title: string;
   description: string;
   price: string;
-  originalPrice?: string;
+  originalPrice: string;
   stock: number;
   productType: "product" | "service";
-  categoryId?: string;
-  benefits: string[];
-  zodiacCompatibility: string[];
   isLabCertified: boolean;
 }
 
@@ -28,9 +25,6 @@ const initialForm: ProductForm = {
   originalPrice: "",
   stock: 0,
   productType: "product",
-  categoryId: "",
-  benefits: [],
-  zodiacCompatibility: [],
   isLabCertified: false,
 };
 
@@ -45,7 +39,28 @@ export default function ProductEditPage() {
 
   useEffect(() => {
     if (productId) {
-      fetchProduct();
+      (async () => {
+        try {
+          const response = await fetch(`/api/admin/products/${productId}`);
+          if (!response.ok) throw new Error("Failed to fetch product");
+          const data = await response.json();
+          
+          // Normalize nullable fields to safe defaults
+          setForm({
+            title: data.title || "",
+            description: data.description || "",
+            price: data.price ? String(data.price) : "",
+            originalPrice: data.originalPrice ? String(data.originalPrice) : "",
+            stock: data.stock || 0,
+            productType: data.productType || "product",
+            isLabCertified: data.isLabCertified || false,
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to load product");
+        } finally {
+          setIsLoading(false);
+        }
+      })();
     } else {
       setIsLoading(false);
     }
@@ -56,7 +71,17 @@ export default function ProductEditPage() {
       const response = await fetch(`/api/admin/products/${productId}`);
       if (!response.ok) throw new Error("Failed to fetch product");
       const data = await response.json();
-      setForm(data);
+      
+      // Normalize nullable fields to safe defaults
+      setForm({
+        title: data.title || "",
+        description: data.description || "",
+        price: data.price ? String(data.price) : "",
+        originalPrice: data.originalPrice ? String(data.originalPrice) : "",
+        stock: data.stock || 0,
+        productType: data.productType || "product",
+        isLabCertified: data.isLabCertified || false,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load product");
     } finally {
@@ -225,7 +250,9 @@ export default function ProductEditPage() {
           {/* Buttons */}
           <div className="flex gap-4 pt-6 border-t border-slate-700">
             <Link href="/admin/products">
-              <Button variant="outline">Cancel</Button>
+              <Button asChild variant="outline">
+                <span>Cancel</span>
+              </Button>
             </Link>
             <Button
               type="submit"

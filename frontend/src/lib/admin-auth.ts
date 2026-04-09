@@ -14,7 +14,7 @@ export async function isUserAdmin(): Promise<boolean> {
     }
 
     // Access private metadata directly from user object
-    const privateMetadata = (user.privateMetadata as any) || {};
+    const privateMetadata = (user.privateMetadata as Record<string, unknown>) || {};
     return privateMetadata.role === "admin";
   } catch (error) {
     console.error("Error checking admin status:", error);
@@ -54,7 +54,7 @@ export async function getAdminMetadata() {
   try {
     const user = await currentUser();
     if (!user) return {};
-    return (user.privateMetadata as any) || {};
+    return (user.privateMetadata as Record<string, unknown>) || {};
   } catch (error) {
     console.error("Error fetching admin metadata:", error);
     return {};

@@ -1,7 +1,6 @@
 import { protectAdminRoute } from "@/lib/admin-auth";
-import { db, products, categories } from "@/db";
+import { db, products } from "@/db";
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   // Check admin access

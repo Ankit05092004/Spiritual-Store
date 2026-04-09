@@ -1,7 +1,9 @@
 import { protectAdminRoute } from "@/lib/admin-auth";
+import { paymentProtection } from "@/lib/arcjet";
 import { db, products } from "@/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 export async function PATCH(
   request: NextRequest,
@@ -10,6 +12,15 @@ export async function PATCH(
   // Check admin access
   const adminError = await protectAdminRoute();
   if (adminError) return adminError;
+
+  // Apply rate limiting
+  const decision = await paymentProtection.protect(request, { requested: 1 });
+  if (decision.isDenied()) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429 }
+    );
+  }
 
   try {
     const { id } = await params;
@@ -23,7 +34,24 @@ export async function PATCH(
       );
     }
 
-    // Get current stock
+    // Validate and parse quantity
+    const qty = parseInt(quantity, 10);
+    if (!Number.isFinite(qty)) {
+      return NextResponse.json(
+        { error: "Quantity must be a valid number" },
+        { status: 400 }
+      );
+    }
+
+    // Validate action
+    if (!["add", "subtract", "set"].includes(action)) {
+      return NextResponse.json(
+        { error: "Invalid action. Use add, subtract, or set" },
+        { status: 400 }
+      );
+    }
+
+    // Get current product for response
     const product = await db
       .select()
       .from(products)
@@ -34,25 +62,23 @@ export async function PATCH(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    let newStock = product[0].stock;
+    const previousStock = product[0].stock;
+    let updateValue;
 
+    // Use atomic database expression based on action
     if (action === "add") {
-      newStock += parseInt(quantity);
+      updateValue = sql`${products.stock} + ${qty}`;
     } else if (action === "subtract") {
-      newStock = Math.max(0, newStock - parseInt(quantity));
-    } else if (action === "set") {
-      newStock = parseInt(quantity);
+      updateValue = sql`GREATEST(0, ${products.stock} - ${qty})`;
     } else {
-      return NextResponse.json(
-        { error: "Invalid action. Use add, subtract, or set" },
-        { status: 400 }
-      );
+      // action === "set"
+      updateValue = sql`GREATEST(0, ${qty})`;
     }
 
     const result = await db
       .update(products)
       .set({
-        stock: newStock,
+        stock: updateValue,
         updatedAt: new Date(),
       })
       .where(eq(products.id, id))
@@ -61,7 +87,7 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       productId: id,
-      previousStock: product[0].stock,
+      previousStock,
       newStock: result[0].stock,
       action,
     });

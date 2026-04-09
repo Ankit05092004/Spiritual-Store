@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@clerk/nextjs/server";
 import AdminLayout from "@/components/admin/admin-layout";
+import Link from "next/link";
 
 export default async function AdminPage() {
   // Check admin role server-side
   const user = await currentUser();
-  const isAdmin = user && (user.privateMetadata as any)?.role === "admin";
+  const isAdmin = user && (user.privateMetadata as Record<string, unknown>)?.role === "admin";
 
   if (!isAdmin) {
     redirect("/");
@@ -29,24 +30,24 @@ export default async function AdminPage() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
           <h2 className="text-xl font-bold text-white mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a
+            <Link
               href="/admin/products"
               className="p-4 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors"
             >
               View All Products
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/products/new"
               className="p-4 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white transition-colors"
             >
               Add New Product
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/analytics"
               className="p-4 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors"
             >
               View Analytics
-            </a>
+            </Link>
           </div>
         </div>
       </div>

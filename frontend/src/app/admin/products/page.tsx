@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/admin-layout";
 import { DataTable } from "@/components/admin/data-table";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ColumnDef } from "@tanstack/react-table";
 import { Edit, Trash2, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -28,8 +34,30 @@ export default function ProductsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    (async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await fetch("/api/admin/products");
+        
+        if (!response.ok) {
+          if (response.status === 403) {
+            setError("You do not have permission to access this page");
+            router.push("/");
+            return;
+          }
+          throw new Error("Failed to fetch products");
+        }
+
+        const data = await response.json();
+        setProducts(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [router]);
 
   const fetchProducts = async () => {
     try {
@@ -111,11 +139,11 @@ export default function ProductsPage() {
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <Link href={`/admin/products/${row.original.id}/edit`}>
-            <Button variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/products/${row.original.id}/edit`}>
               <Edit className="h-4 w-4" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -166,30 +194,28 @@ export default function ProductsPage() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-sm">
-            <h2 className="text-xl font-bold text-white mb-4">Delete Product?</h2>
-            <p className="text-slate-400 mb-6">
-              Are you sure you want to delete "{selectedProduct.title}"? This action cannot be undone.
-            </p>
-            <div className="flex gap-4">
-              <Button
-                variant="outline"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-red-600 hover:bg-red-700"
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
-            </div>
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="bg-slate-800 border border-slate-700">
+          <DialogTitle className="text-white">Delete Product?</DialogTitle>
+          <DialogDescription className="text-slate-400">
+            Are you sure you want to delete &quot;{selectedProduct?.title}&quot;? This action cannot be undone.
+          </DialogDescription>
+          <div className="flex gap-4 justify-end pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
