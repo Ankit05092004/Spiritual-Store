@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { useCartStore } from "@/lib/stores/cart-store";
 
 // Define menu structure
@@ -101,6 +101,7 @@ const menuItems: MenuItem[] = [
 
 export default function Navbar() {
   const totalItems = useCartStore((state) => state.getTotalItems());
+  const { user, isLoaded } = useUser();
   const [isHydrated, setIsHydrated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -108,6 +109,9 @@ export default function Navbar() {
     string | null
   >(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Check if user is admin from session claims or metadata
+  const isAdmin = isLoaded && user && user.unsafeMetadata?.role === "admin";
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -216,6 +220,20 @@ export default function Navbar() {
           {/* Right Actions */}
           <div className="flex items-center gap-2 shrink-0">
             <SignedIn>
+              {isAdmin && (
+                <Link href="/admin" className="hidden sm:block">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Admin Dashboard"
+                    className="rounded-full text-primary border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors font-semibold"
+                  >
+                    <span className="material-symbols-outlined text-base mr-1.5">admin_panel_settings</span>
+                    Admin
+                  </Button>
+                </Link>
+              )}
+
               <Link href="/wishlist" className="hidden sm:block">
                 <Button
                   variant="ghost"
@@ -424,6 +442,20 @@ export default function Navbar() {
                   <h4 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Account
                   </h4>
+                  
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-primary hover:bg-primary/10 transition-colors font-semibold"
+                    >
+                      <span className="material-symbols-outlined text-primary">
+                        admin_panel_settings
+                      </span>
+                      <span className="font-medium">Admin Dashboard</span>
+                    </Link>
+                  )}
+
                   <Link
                     href="/wishlist"
                     onClick={() => setMobileMenuOpen(false)}
