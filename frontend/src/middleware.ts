@@ -13,20 +13,42 @@ const isPublicRoute = createRouteMatcher([
   "/api(.*)",
 ]);
 
+// Define admin routes that require admin role
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+
 export default clerkMiddleware(async (auth, request) => {
   // Allow public routes without authentication
   if (isPublicRoute(request)) {
     return NextResponse.next();
   }
 
-  // Protect non-public routes
-  try {
-    await auth.protect();
-  } catch {
-    // If not authenticated, redirect to sign-in
-    const signInUrl = new URL("/sign-in", request.url);
-    signInUrl.searchParams.set("redirect_url", request.url);
-    return NextResponse.redirect(signInUrl);
+  // Protect admin routes - check for authentication first
+  if (isAdminRoute(request)) {
+    try {
+      const { userId, sessionClaims } = await auth.protect();
+      
+      // Check if user has admin role in private metadata
+      const privateMetadata = (sessionClaims?.metadata as any)?.private || {};
+      if (privateMetadata.role !== "admin") {
+        // User is authenticated but not an admin - redirect to home
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    } catch {
+      // If not authenticated, redirect to sign-in
+      const signInUrl = new URL("/sign-in", request.url);
+      signInUrl.searchParams.set("redirect_url", request.url);
+      return NextResponse.redirect(signInUrl);
+    }
+  } else {
+    // Protect other non-public routes
+    try {
+      await auth.protect();
+    } catch {
+      // If not authenticated, redirect to sign-in
+      const signInUrl = new URL("/sign-in", request.url);
+      signInUrl.searchParams.set("redirect_url", request.url);
+      return NextResponse.redirect(signInUrl);
+    }
   }
 
   return NextResponse.next();
