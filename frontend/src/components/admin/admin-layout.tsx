@@ -5,14 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  LayoutDashboard,
-  Package,
-  Plus,
-  BarChart3,
-  Settings,
-  LogOut,
-} from "lucide-react";
+import { LayoutDashboard, Package, Plus, Settings, LogOut } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 
 interface AdminLayoutProps {
@@ -34,11 +27,6 @@ const adminNavItems = [
     href: "/admin/products/new",
     label: "Add Product",
     icon: Plus,
-  },
-  {
-    href: "/admin/analytics",
-    label: "Analytics",
-    icon: BarChart3,
   },
   {
     href: "/admin/settings",
@@ -69,10 +57,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {adminNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = item.href === "/admin" 
-              ? pathname === item.href 
-              : pathname === item.href || pathname.startsWith(item.href + "/");
-            
+            const isActive =
+              item.href === "/admin"
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
+
             return (
               <Link
                 key={item.href}
@@ -81,7 +71,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
                   isActive
                     ? "bg-indigo-600 text-white"
-                    : "text-slate-300 hover:bg-slate-700"
+                    : "text-slate-300 hover:bg-slate-700",
                 )}
               >
                 <Icon className="h-5 w-5" />
@@ -94,7 +84,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {/* Logout */}
         <div className="border-t border-slate-700 p-4">
           <SignOutButton redirectUrl="/">
-            <Button 
+            <Button
               variant="ghost"
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-700"
             >
@@ -107,9 +97,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-slate-950">
-        <div className="min-h-screen">
-          {children}
-        </div>
+        <div className="min-h-screen">{children}</div>
       </main>
     </div>
   );
