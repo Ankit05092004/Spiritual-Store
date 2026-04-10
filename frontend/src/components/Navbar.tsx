@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useIsAdmin } from "@/lib/hooks/use-is-admin";
 
 // Define menu structure
 type LinkItem = {
@@ -100,8 +101,8 @@ const menuItems: MenuItem[] = [
 ];
 
 export default function Navbar() {
+  const { isAdmin } = useIsAdmin();
   const totalItems = useCartStore((state) => state.getTotalItems());
-  const { user, isLoaded } = useUser();
   const [isHydrated, setIsHydrated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -109,9 +110,6 @@ export default function Navbar() {
     string | null
   >(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Check if user is admin from session claims or metadata
-  const isAdmin = isLoaded && user && user.unsafeMetadata?.role === "admin";
 
   // Close dropdown when clicking outside
   useEffect(() => {
