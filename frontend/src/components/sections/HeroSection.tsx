@@ -9,7 +9,10 @@ export default function HeroSection() {
       <div className="absolute inset-0 bg-linear-to-br from-background via-primary/5 to-background"></div>
 
       {/* Rotating Zodiac Wheel - Centered */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] md:w-[700px] md:h-[700px] lg:w-[800px] lg:h-[800px]">
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{ width: "min(500px, 80vw)", height: "min(500px, 80vw)" }}
+      >
         <img
           src="/Zodiac-Wheel.png"
           alt="Zodiac Wheel"
@@ -63,6 +66,16 @@ export default function HeroSection() {
                 auto_awesome
               </span>
               Find Your Rashi
+            </Button>
+          </Link>
+          <Link href="/recommendations">
+            <Button
+              size="lg"
+              variant="outline"
+              className="rounded-full px-8 h-14 text-lg font-bold border-2 hover:bg-primary/5"
+            >
+              <span className="material-symbols-outlined mr-2">quiz</span>
+              Get Recommendations
             </Button>
           </Link>
         </div>
