@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { db, products } from "@/db";
+import { db, products, categories } from "@/db";
 import {
   questionnaireAttempts as questionnaireAttemptsTable,
   questionnaireQuestionOptions as questionnaireQuestionOptionsTable,
@@ -15,6 +15,7 @@ import {
   summarizeQuestionnaireResult,
   type QuestionnaireAnswerMap,
 } from "@/lib/questionnaire";
+import type { Product } from "@/data/products";
 
 const questionnaireAnswerSchema = z.record(z.string(), z.string());
 
@@ -198,7 +199,61 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const recommendations = summarizeQuestionnaireResult(answers, products);
+    // Fetch products from database and map to Product interface
+    const dbProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        slug: products.slug,
+        description: products.description,
+        price: products.price,
+        originalPrice: products.originalPrice,
+        discount: products.discount,
+        images: products.images,
+        category: categories.name,
+        rating: products.rating,
+        reviewsCount: products.reviewsCount,
+        isLabCertified: products.isLabCertified,
+        stock: products.stock,
+        benefits: products.benefits,
+        howToWear: products.howToWear,
+        zodiacCompatibility: products.zodiacCompatibility,
+        productType: products.productType,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(ne(products.productType, "service"));
+
+    const formattedProducts: Product[] = dbProducts.map((p) => {
+      const rawHowToWear = p.howToWear as Record<string, unknown> | null;
+      const howToWear = {
+        bestDay: typeof rawHowToWear?.bestDay === "string" ? rawHowToWear.bestDay : "",
+        bestTime: typeof rawHowToWear?.bestTime === "string" ? rawHowToWear.bestTime : "",
+        mantra: typeof rawHowToWear?.mantra === "string" ? rawHowToWear.mantra : "",
+        finger: typeof rawHowToWear?.finger === "string" ? rawHowToWear.finger : undefined,
+      };
+
+      return {
+        id: p.id,
+        title: p.title,
+        category: p.category || "",
+        price: `₹${Math.round(Number(p.price)).toLocaleString("en-IN")}`,
+        originalPrice: p.originalPrice
+          ? `₹${Math.round(Number(p.originalPrice)).toLocaleString("en-IN")}`
+          : undefined,
+        discount: p.discount || undefined,
+        rating: Number(p.rating || 0),
+        reviews: p.reviewsCount || 0,
+        images: p.images,
+        description: p.description || "",
+        benefits: p.benefits || [],
+        howToWear,
+        zodiacCompatibility: p.zodiacCompatibility || [],
+        isLabCertified: p.isLabCertified || false,
+      };
+    });
+
+    const recommendations = summarizeQuestionnaireResult(answers, formattedProducts);
 
     const [attempt] = await db
       .insert(questionnaireAttemptsTable)
