@@ -5,7 +5,7 @@ import {
   questionnaireQuestionOptions as questionnaireQuestionOptionsTable,
 } from "@/db/schema";
 import { questionnaireQuestions as defaultQuestionnaireQuestions } from "@/lib/questionnaire";
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 
 type QuestionnaireQuestionResponse = {
   id: string;
@@ -96,7 +96,7 @@ export async function GET() {
           optionText: option.optionText,
           optionDescription: option.optionDescription,
           scoreWeight: option.scoreWeight,
-          recommendationMapping: option.recommendationMapping,
+          recommendationMapping: option.recommendationMapping as Record<string, unknown> | null,
           isActive: option.isActive,
           sortOrder: option.sortOrder,
         })),
