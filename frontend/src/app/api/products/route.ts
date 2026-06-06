@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, products, categories } from "@/db";
-import { eq, ne, ilike, or, and, sql } from "drizzle-orm";
+import { db, products, categories, questionnaireAttempts } from "@/db";
+import { eq, ne, ilike, or, and, sql, inArray, desc } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,6 +87,45 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(products.productType, productType));
     }
 
+    const recommended = searchParams.get("recommended") === "true";
+    if (recommended) {
+      const { userId } = await auth();
+      if (userId) {
+        // Query the latest completed attempt for this user
+        const latestAttempt = await db.query.questionnaireAttempts.findFirst({
+          where: eq(questionnaireAttempts.userId, userId),
+          orderBy: desc(questionnaireAttempts.createdAt),
+        });
+
+        if (latestAttempt && latestAttempt.recommendationResult) {
+          const recResult = latestAttempt.recommendationResult as Record<string, unknown>;
+          const recommendationsList = Array.isArray(recResult?.recommendations)
+            ? recResult.recommendations
+            : [];
+          const recommendedIds = recommendationsList
+            .map((r) =>
+              r && typeof r === "object" && "productId" in r
+                ? (r as Record<string, unknown>).productId
+                : null,
+            )
+            .filter((id): id is string => typeof id === "string");
+
+          if (recommendedIds.length > 0) {
+            conditions.push(inArray(products.id, recommendedIds));
+          } else {
+            // No recommended products found, return nothing
+            conditions.push(sql`1 = 0`);
+          }
+        } else {
+          // No attempt found, return nothing
+          conditions.push(sql`1 = 0`);
+        }
+      } else {
+        // Unauthenticated, return nothing
+        conditions.push(sql`1 = 0`);
+      }
+    }
+
     // 1. Get total count for pagination
     let countQuery = db
       .select({ count: sql<number>`count(*)` })
@@ -93,7 +133,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(categories, eq(products.categoryId, categories.id));
 
     if (conditions.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error countQuery has dynamic type constraints in Drizzle
       countQuery = countQuery.where(and(...conditions));
     }
 
@@ -127,12 +167,12 @@ export async function GET(request: NextRequest) {
     // Apply conditions
     let finalQuery = query;
     if (conditions.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error finalQuery has dynamic type constraints in Drizzle
       finalQuery = query.where(and(...conditions));
     }
 
     // Apply pagination
-    // @ts-ignore
+    // @ts-expect-error finalQuery has dynamic type constraints in Drizzle
     finalQuery = finalQuery.limit(limit).offset(offset);
 
     const results = await finalQuery;

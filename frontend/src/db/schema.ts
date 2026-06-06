@@ -396,6 +396,166 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 }));
 
 // ============================================
+// QUESTIONNAIRE / RECOMMENDATION ENGINE
+// ============================================
+export const questionnaireQuestions = pgTable(
+  "questionnaire_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    questionText: text("question_text").notNull(),
+    category: text("category").notNull(),
+    status: text("status", { enum: ["active", "inactive"] })
+      .default("active")
+      .notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_questionnaire_questions_status").on(table.status),
+    index("idx_questionnaire_questions_category").on(table.category),
+    index("idx_questionnaire_questions_sort_order").on(table.sortOrder),
+  ],
+);
+
+export const questionnaireQuestionOptions = pgTable(
+  "questionnaire_question_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    questionId: uuid("question_id")
+      .references(() => questionnaireQuestions.id, { onDelete: "cascade" })
+      .notNull(),
+    optionKey: text("option_key").notNull(),
+    optionText: text("option_text").notNull(),
+    optionDescription: text("option_description"),
+    scoreWeight: integer("score_weight").default(0).notNull(),
+    recommendationMapping: jsonb("recommendation_mapping").default({}),
+    isActive: boolean("is_active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_questionnaire_options_question").on(table.questionId),
+    unique("unique_questionnaire_option_key").on(
+      table.questionId,
+      table.optionKey,
+    ),
+  ],
+);
+
+export const questionnaireAttempts = pgTable(
+  "questionnaire_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    totalScore: integer("total_score").default(0).notNull(),
+    recommendationResult: jsonb("recommendation_result").default({}),
+    completionStatus: text("completion_status", {
+      enum: ["incomplete", "complete"],
+    })
+      .default("complete")
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_questionnaire_attempts_user").on(table.userId),
+    index("idx_questionnaire_attempts_created").on(table.createdAt),
+    index("idx_questionnaire_attempts_status").on(table.completionStatus),
+  ],
+);
+
+export const questionnaireResponses = pgTable(
+  "questionnaire_responses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    attemptId: uuid("attempt_id")
+      .references(() => questionnaireAttempts.id, { onDelete: "cascade" })
+      .notNull(),
+    questionId: uuid("question_id")
+      .references(() => questionnaireQuestions.id, { onDelete: "cascade" })
+      .notNull(),
+    selectedOptionId: uuid("selected_option_id")
+      .references(() => questionnaireQuestionOptions.id, {
+        onDelete: "cascade",
+      })
+      .notNull(),
+    responseTimestamp: timestamp("response_timestamp", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_questionnaire_responses_attempt").on(table.attemptId),
+    index("idx_questionnaire_responses_question").on(table.questionId),
+    unique("unique_questionnaire_attempt_question").on(
+      table.attemptId,
+      table.questionId,
+    ),
+  ],
+);
+
+export const questionnaireQuestionsRelations = relations(
+  questionnaireQuestions,
+  ({ many }) => ({
+    options: many(questionnaireQuestionOptions),
+    responses: many(questionnaireResponses),
+  }),
+);
+
+export const questionnaireQuestionOptionsRelations = relations(
+  questionnaireQuestionOptions,
+  ({ one, many }) => ({
+    question: one(questionnaireQuestions, {
+      fields: [questionnaireQuestionOptions.questionId],
+      references: [questionnaireQuestions.id],
+    }),
+    responses: many(questionnaireResponses),
+  }),
+);
+
+export const questionnaireAttemptsRelations = relations(
+  questionnaireAttempts,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [questionnaireAttempts.userId],
+      references: [users.id],
+    }),
+    responses: many(questionnaireResponses),
+  }),
+);
+
+export const questionnaireResponsesRelations = relations(
+  questionnaireResponses,
+  ({ one }) => ({
+    attempt: one(questionnaireAttempts, {
+      fields: [questionnaireResponses.attemptId],
+      references: [questionnaireAttempts.id],
+    }),
+    question: one(questionnaireQuestions, {
+      fields: [questionnaireResponses.questionId],
+      references: [questionnaireQuestions.id],
+    }),
+    selectedOption: one(questionnaireQuestionOptions, {
+      fields: [questionnaireResponses.selectedOptionId],
+      references: [questionnaireQuestionOptions.id],
+    }),
+  }),
+);
+
+// ============================================
 // COUPONS
 // ============================================
 export const coupons = pgTable(
@@ -658,6 +818,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   addresses: many(addresses),
   reviews: many(reviews),
+  questionnaireAttempts: many(questionnaireAttempts),
   wishlistItems: many(wishlistItems),
   rashiReports: many(rashiReports),
   astrologyReports: many(astrologyReports),
@@ -675,6 +836,11 @@ export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
+export type QuestionnaireQuestion = typeof questionnaireQuestions.$inferSelect;
+export type QuestionnaireQuestionOption =
+  typeof questionnaireQuestionOptions.$inferSelect;
+export type QuestionnaireAttempt = typeof questionnaireAttempts.$inferSelect;
+export type QuestionnaireResponse = typeof questionnaireResponses.$inferSelect;
 export type Coupon = typeof coupons.$inferSelect;
 export type WishlistItem = typeof wishlistItems.$inferSelect;
 export type RashiReport = typeof rashiReports.$inferSelect;
@@ -688,6 +854,13 @@ export type NewOrder = typeof orders.$inferInsert;
 export type NewOrderItem = typeof orderItems.$inferInsert;
 export type NewPayment = typeof payments.$inferInsert;
 export type NewReview = typeof reviews.$inferInsert;
+export type NewQuestionnaireQuestion =
+  typeof questionnaireQuestions.$inferInsert;
+export type NewQuestionnaireQuestionOption =
+  typeof questionnaireQuestionOptions.$inferInsert;
+export type NewQuestionnaireAttempt = typeof questionnaireAttempts.$inferInsert;
+export type NewQuestionnaireResponse =
+  typeof questionnaireResponses.$inferInsert;
 export type NewCoupon = typeof coupons.$inferInsert;
 export type NewWishlistItem = typeof wishlistItems.$inferInsert;
 export type NewRashiReport = typeof rashiReports.$inferInsert;
