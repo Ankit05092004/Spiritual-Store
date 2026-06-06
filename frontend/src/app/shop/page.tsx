@@ -29,7 +29,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useCartStore } from "@/lib/stores/cart-store";
+import { useAuth } from "@clerk/nextjs";
+import { Switch } from "@/components/ui/switch";
 
 // Type definition matching the API response
 interface Product {
@@ -52,6 +53,26 @@ interface Product {
   };
   zodiacCompatibility?: string[];
   isLabCertified?: boolean;
+}
+
+interface RecommendationDetail {
+  productId: string;
+  title: string;
+  category: string;
+  price: string;
+  score: number;
+  reasons: string[];
+  isLabCertified: boolean;
+}
+
+interface AttemptType {
+  id: string;
+  totalScore: number;
+  recommendationResult?: {
+    totalScore?: number;
+    recommendations?: RecommendationDetail[];
+  };
+  createdAt: string;
 }
 
 export default function Shop() {
@@ -82,7 +103,37 @@ export default function Shop() {
     message: string;
   } | null>(null);
 
-  const addItem = useCartStore((state) => state.addItem);
+  const { isSignedIn } = useAuth();
+  const [hasAttempt, setHasAttempt] = useState(false);
+  const [latestAttempt, setLatestAttempt] = useState<AttemptType | null>(null);
+  const [recommendedOnly, setRecommendedOnly] = useState(false);
+
+  useEffect(() => {
+    const checkAttempt = async () => {
+      if (!isSignedIn) {
+        setHasAttempt(false);
+        setLatestAttempt(null);
+        return;
+      }
+      try {
+        const res = await fetch("/api/questionnaire/attempts");
+        if (res.ok) {
+          const data = await res.json();
+          const attempts = data.attempts || [];
+          if (attempts.length > 0) {
+            setHasAttempt(true);
+            setLatestAttempt(attempts[0]);
+          } else {
+            setHasAttempt(false);
+            setLatestAttempt(null);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check questionnaire attempt:", err);
+      }
+    };
+    checkAttempt();
+  }, [isSignedIn]);
 
   // Debounce search
   useEffect(() => {
@@ -105,6 +156,8 @@ export default function Shop() {
           params.append("minPrice", appliedPriceRange.min);
         if (appliedPriceRange.max)
           params.append("maxPrice", appliedPriceRange.max);
+        if (recommendedOnly)
+          params.append("recommended", "true");
         params.append("page", page.toString());
         params.append("limit", limit.toString());
 
@@ -129,7 +182,7 @@ export default function Shop() {
     };
 
     fetchProducts();
-  }, [selectedCategory, debouncedSearch, appliedPriceRange, page, limit]);
+  }, [selectedCategory, debouncedSearch, appliedPriceRange, recommendedOnly, page, limit]);
 
   const handlePriceApply = () => {
     setAppliedPriceRange({ min: minPrice, max: maxPrice });
@@ -142,6 +195,7 @@ export default function Shop() {
     setMinPrice("");
     setMaxPrice("");
     setAppliedPriceRange({ min: "", max: "" });
+    setRecommendedOnly(false);
     setPage(1);
   };
 
@@ -250,6 +304,78 @@ export default function Shop() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+
+              {/* Personalized Recommendations Card */}
+              <Card className="border-primary/20 bg-linear-to-br from-primary/5 via-background to-secondary/5 shadow-md overflow-hidden relative group">
+                <div className="absolute -right-6 -top-6 opacity-10 pointer-events-none transition-transform group-hover:scale-110 duration-500">
+                  <span className="material-symbols-outlined text-[80px] text-primary">
+                    auto_awesome
+                  </span>
+                </div>
+                <CardContent className="p-4 space-y-4 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">
+                      magic_button
+                    </span>
+                    <h3 className="font-serif font-bold text-lg text-primary">
+                      Divine Match
+                    </h3>
+                  </div>
+
+                  {!isSignedIn ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Sign in and take our questionnaire to filter by your personalized matches.
+                      </p>
+                      <Link href="/sign-in?redirect_url=/shop">
+                        <Button size="sm" className="w-full text-xs rounded-xl" variant="outline">
+                          Sign In
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : !hasAttempt ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Take our quick questionnaire to uncover your spiritual matches and unlock recommendation filtering.
+                      </p>
+                      <Link href="/recommendations">
+                        <Button size="sm" className="w-full text-xs rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
+                          Take Questionnaire
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">
+                          Filter by Matches
+                        </span>
+                        <Switch
+                          checked={recommendedOnly}
+                          onCheckedChange={(checked) => {
+                            setRecommendedOnly(checked);
+                            setPage(1);
+                          }}
+                        />
+                      </div>
+
+                      {latestAttempt && (
+                        <div className="bg-background/60 p-2.5 rounded-lg border border-border/50 text-[11px] space-y-1">
+                          <p className="font-semibold text-muted-foreground uppercase tracking-wider text-[9px]">
+                            Latest Focus
+                          </p>
+                          <p className="text-foreground capitalize font-bold">
+                            {latestAttempt.recommendationResult?.recommendations?.[0]?.reasons?.[0]?.replace("Matches your ", "") || "Spiritual Fit"}
+                          </p>
+                          <Link href="/recommendations" className="block text-primary hover:underline font-semibold pt-1">
+                            Retake Questionnaire →
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               <Card className="border-border/50 shadow-sm">
                 <CardContent className="p-4 space-y-2">
