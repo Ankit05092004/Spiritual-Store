@@ -1,4 +1,4 @@
--- Supabase Database Schema for AstraSpiritual E-commerce
+-- Supabase Database Schema for MahadevAstro E-commerce
 -- Run this in your Supabase SQL Editor
 
 -- Products table

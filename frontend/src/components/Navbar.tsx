@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useIsAdmin } from "@/lib/hooks/use-is-admin";
 
 // Define menu structure
 type LinkItem = {
@@ -100,7 +101,9 @@ const menuItems: MenuItem[] = [
 ];
 
 export default function Navbar() {
+  const { isAdmin } = useIsAdmin();
   const totalItems = useCartStore((state) => state.getTotalItems());
+  const [isHydrated, setIsHydrated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [activeMobileDropdown, setActiveMobileDropdown] = useState<
@@ -109,6 +112,10 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -134,7 +141,7 @@ export default function Navbar() {
               </span>
             </div>
             <span className="font-serif text-xl font-bold text-foreground tracking-tight hidden lg:block">
-              ASTRA<span className="text-primary">SPIRITUAL</span>
+              MAHADEV<span className="text-primary">ASTRO</span>
             </span>
           </Link>
 
@@ -211,6 +218,20 @@ export default function Navbar() {
           {/* Right Actions */}
           <div className="flex items-center gap-2 shrink-0">
             <SignedIn>
+              {isAdmin && (
+                <Link href="/admin" className="hidden sm:block">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Admin Dashboard"
+                    className="rounded-full text-primary border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors font-semibold"
+                  >
+                    <span className="material-symbols-outlined text-base mr-1.5">admin_panel_settings</span>
+                    Admin
+                  </Button>
+                </Link>
+              )}
+
               <Link href="/wishlist" className="hidden sm:block">
                 <Button
                   variant="ghost"
@@ -219,6 +240,17 @@ export default function Navbar() {
                   className="rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
                 >
                   <span className="material-symbols-outlined">favorite</span>
+                </Button>
+              </Link>
+
+              <Link href="/my-reports" className="hidden sm:block">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="My Reports"
+                  className="rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                >
+                  <span className="material-symbols-outlined">description</span>
                 </Button>
               </Link>
 
@@ -245,7 +277,7 @@ export default function Navbar() {
                 className="rounded-full hover:bg-primary/10 hover:text-primary transition-colors relative"
               >
                 <span className="material-symbols-outlined">shopping_bag</span>
-                {totalItems > 0 && (
+                {isHydrated && totalItems > 0 && (
                   <Badge className="absolute -top-1 -right-1 size-5 p-0 flex items-center justify-center text-[10px]">
                     {totalItems}
                   </Badge>
@@ -311,7 +343,7 @@ export default function Navbar() {
                   </span>
                 </div>
                 <span className="font-serif text-lg font-bold text-foreground tracking-tight">
-                  ASTRA<span className="text-primary">SPIRITUAL</span>
+                  MAHADEV<span className="text-primary">ASTRO</span>
                 </span>
               </Link>
               <Button
@@ -408,6 +440,20 @@ export default function Navbar() {
                   <h4 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Account
                   </h4>
+                  
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-primary hover:bg-primary/10 transition-colors font-semibold"
+                    >
+                      <span className="material-symbols-outlined text-primary">
+                        admin_panel_settings
+                      </span>
+                      <span className="font-medium">Admin Dashboard</span>
+                    </Link>
+                  )}
+
                   <Link
                     href="/wishlist"
                     onClick={() => setMobileMenuOpen(false)}
@@ -417,6 +463,17 @@ export default function Navbar() {
                       favorite
                     </span>
                     <span className="font-medium">Wishlist</span>
+                  </Link>
+
+                  <Link
+                    href="/my-reports"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-foreground hover:bg-muted hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-muted-foreground">
+                      description
+                    </span>
+                    <span className="font-medium">My Reports</span>
                   </Link>
 
                   <Link
@@ -444,7 +501,7 @@ export default function Navbar() {
               </SignedOut>
               <div className="text-center mt-6">
                 <p className="text-xs text-muted-foreground">
-                  © {new Date().getFullYear()} AstraSpiritual.
+                  © {new Date().getFullYear()} MahadevAstro.
                 </p>
                 <p className="text-[10px] text-muted-foreground/60 mt-1">
                   All rights reserved.

@@ -875,7 +875,7 @@ export function generatePrintHTML(report: ExtendedAstrologyReport): string {
     
     <div class="footer">
       <p>Wishing all the best on your journey,</p>
-      <p><span class="brand">AstraSpiritual</span></p>
+      <p><span class="brand">MahadevAstro</span></p>
       <p style="margin-top: 10px;">Generated on ${new Date(report.generatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
     </div>
   </div>

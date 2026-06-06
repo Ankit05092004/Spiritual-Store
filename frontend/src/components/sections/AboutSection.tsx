@@ -15,7 +15,7 @@ export default function AboutSection() {
               <span className="text-primary">Modern Trust</span>
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              Founded in 2010, AstraSpiritual has been India&apos;s most trusted
+              Founded in 2010, MahadevAstro has been India&apos;s most trusted
               source for authentic spiritual products. We bridge the gap between
               ancient Vedic traditions and modern verification methods.
             </p>
@@ -58,7 +58,7 @@ export default function AboutSection() {
             <div className="relative rounded-3xl overflow-hidden shadow-2xl">
               <img
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5UuOpEVjMfcP6B3I3UN8rUY1Tg5opjyJsq3DaS9TPQTMJuFHy6l7lqjnwIvKs357uNdO93uubW5DRZf6YvpUrY4zTRNQGXi5WqsUwtomdOYitPEyVJANfyabWxAfHB0WtvqC0lGhmNH50BKDW2QV67bL3Y-srohMGyHb4OIds1S8zI-wkYjt78aQCnmLldBich8aUpTw2OLqdsZpn_tESOxWG30ml5oelVASXprFplenU4YOAg-5i4I1rsNOlP-O2fzrT2wObqEU"
-                alt="About AstraSpiritual"
+                alt="About MahadevAstro"
                 className="w-full aspect-square object-cover"
               />
             </div>

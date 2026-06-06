@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const slug = searchParams.get("slug");
 
     // Safe parse integers with limits
     const MAX_LIMIT = 100;
@@ -64,6 +65,10 @@ export async function GET(request: NextRequest) {
           ilike(products.description, `%${search}%`),
         ),
       );
+    }
+
+    if (slug) {
+      conditions.push(eq(products.slug, slug));
     }
 
     if (minPrice) {

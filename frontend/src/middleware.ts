@@ -13,13 +13,17 @@ const isPublicRoute = createRouteMatcher([
   "/api(.*)",
 ]);
 
+// Define admin routes that require authentication (role check happens in page/API)
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+
 export default clerkMiddleware(async (auth, request) => {
   // Allow public routes without authentication
   if (isPublicRoute(request)) {
     return NextResponse.next();
   }
 
-  // Protect non-public routes
+  // Protect admin routes and other routes - require authentication
+  // Role-based access control is handled by individual pages/API routes using isUserAdmin()
   try {
     await auth.protect();
   } catch {

@@ -27,7 +27,7 @@ export default function WhyChooseUsSection() {
             WHY CHOOSE US
           </Badge>
           <h2 className="text-4xl md:text-5xl font-serif font-bold">
-            The Astra Spiritual Difference
+            The Mahadev Astro Difference
           </h2>
         </div>
 

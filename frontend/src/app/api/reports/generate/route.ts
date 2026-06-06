@@ -3,23 +3,31 @@
  *
  * POST /api/reports/generate
  *
- * Generates deterministic astrology reports based on birth chart data.
- * Checks database for cached reports first to avoid regeneration.
+ * Generates astrology reports based on birth chart data.
+ * Requires a paid entitlement token and consumes it after generation.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { astrologyReports } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { db, astrologyReports, reportEntitlements } from "@/db";
+import * as Sentry from "@sentry/nextjs";
+import { and, eq } from "drizzle-orm";
 import {
   generateReport,
   createProfile,
   validateProfile,
   generateCacheKey,
   ReportDuration,
-  AstrologyReport,
 } from "@/lib/astrology-reports";
+
+type EntitlementReportType =
+  (typeof reportEntitlements.$inferSelect)["reportType"];
+
+const REPORT_TYPE_BY_DURATION: Record<ReportDuration, EntitlementReportType> = {
+  1: "1-year",
+  3: "3-year",
+  5: "5-year",
+};
 
 interface GenerateReportRequest {
   /** Date of birth (YYYY-MM-DD) */
@@ -105,61 +113,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate cache key for deterministic lookup
-    const cacheKey = generateCacheKey(profile, body.duration);
+    const reportType = REPORT_TYPE_BY_DURATION[body.duration];
 
-    // Check if report already exists in database
-    const existingReport = await db.query.astrologyReports.findFirst({
-      where: eq(astrologyReports.cacheKey, cacheKey),
+    // Consume entitlement and persist report atomically to prevent double-spend.
+    const transactionResult = await db.transaction(async (tx) => {
+      const [entitlement] = await tx
+        .delete(reportEntitlements)
+        .where(
+          and(
+            eq(reportEntitlements.userId, userId),
+            eq(reportEntitlements.reportType, reportType),
+          ),
+        )
+        .returning({
+          id: reportEntitlements.id,
+          orderId: reportEntitlements.orderId,
+        });
+
+      if (!entitlement) {
+        return null;
+      }
+
+      // Generate only after entitlement is locked and confirmed.
+      const report = generateReport(profile, body.duration);
+
+      // Keep deterministic content but make each paid generation a unique persisted record.
+      const cacheKey = `${generateCacheKey(profile, body.duration)}:${entitlement.id}`;
+
+      const [insertedReport] = await tx
+        .insert(astrologyReports)
+        .values({
+          userId,
+          orderId: entitlement.orderId,
+          reportType,
+          birthData: {
+            dob: profile.dob,
+            name: profile.name,
+            sunSign: profile.sunSign,
+            moonSign: profile.moonSign,
+            ascendant: profile.ascendant,
+            planetaryHouses: profile.planetaryHouses,
+            planetarySigns: profile.planetarySigns,
+            currentDasha: profile.currentDasha,
+            upcomingDashas: profile.upcomingDashas,
+          },
+          reportData: report,
+          cacheKey,
+        })
+        .returning();
+
+      return {
+        report: insertedReport.reportData,
+        reportId: insertedReport.id,
+      };
     });
 
-    if (existingReport) {
-      // Return cached report
-      return NextResponse.json({
-        success: true,
-        fromCache: true,
-        reportId: existingReport.id,
-        report: existingReport.reportData as AstrologyReport,
-      });
-    }
-
-    // Generate the report (deterministic)
-    const report = generateReport(profile, body.duration);
-
-    // Store in database
-    const reportType = `${body.duration}-year` as
-      | "1-year"
-      | "3-year"
-      | "5-year";
-
-    const [savedReport] = await db
-      .insert(astrologyReports)
-      .values({
-        userId,
-        orderId: body.orderId,
-        reportType,
-        birthData: {
-          dob: profile.dob,
-          sunSign: profile.sunSign,
-          moonSign: profile.moonSign,
-          ascendant: profile.ascendant,
-          planetaryHouses: profile.planetaryHouses,
-          planetarySigns: profile.planetarySigns,
-          currentDasha: profile.currentDasha,
-          upcomingDashas: profile.upcomingDashas,
+    if (!transactionResult) {
+      return NextResponse.json(
+        {
+          error:
+            "Payment required. Please complete payment before generating this report.",
         },
-        reportData: report,
-        cacheKey,
-      })
-      .returning();
+        { status: 402 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
       fromCache: false,
-      reportId: savedReport.id,
-      report,
+      reportId: transactionResult.reportId,
+      report: transactionResult.report,
     });
   } catch (error) {
+    Sentry.captureException(error, {
+      tags: { endpoint: "reports-generate" },
+      extra: { route: "/api/reports/generate" },
+    });
     console.error("Report generation error:", error);
     return NextResponse.json(
       { error: "Failed to generate report" },
