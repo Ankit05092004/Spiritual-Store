@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { asc, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db, products, categories } from "@/db";
@@ -8,6 +8,7 @@ import {
   questionnaireQuestionOptions as questionnaireQuestionOptionsTable,
   questionnaireQuestions as questionnaireQuestionsTable,
   questionnaireResponses as questionnaireResponsesTable,
+  users as usersTable,
 } from "@/db/schema";
 import {
   initialQuestionnaireAnswers,
@@ -18,6 +19,45 @@ import {
 import type { Product } from "@/data/products";
 
 const questionnaireAnswerSchema = z.record(z.string(), z.string());
+
+/**
+ * Upserts the authenticated Clerk user into our local `users` table.
+ * `questionnaire_attempts.user_id` has a FK referencing `users.id`,
+ * but there is no webhook syncing Clerk users automatically, so we
+ * ensure the row exists on every questionnaire write.
+ */
+async function ensureUserExists(userId: string): Promise<void> {
+  const clerkUser = await currentUser();
+  if (!clerkUser) return;
+
+  const email =
+    clerkUser.emailAddresses.find(
+      (e) => e.id === clerkUser.primaryEmailAddressId,
+    )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+
+  if (!email) return;
+
+  await db
+    .insert(usersTable)
+    .values({
+      id: userId,
+      email,
+      firstName: clerkUser.firstName ?? null,
+      lastName: clerkUser.lastName ?? null,
+      imageUrl: clerkUser.imageUrl ?? null,
+      role: "user",
+    })
+    .onConflictDoUpdate({
+      target: usersTable.id,
+      set: {
+        email,
+        firstName: clerkUser.firstName ?? null,
+        lastName: clerkUser.lastName ?? null,
+        imageUrl: clerkUser.imageUrl ?? null,
+        updatedAt: new Date(),
+      },
+    });
+}
 
 async function seedQuestionsIfMissing() {
   const existingQuestions = await db.query.questionnaireQuestions.findMany({
@@ -132,6 +172,10 @@ export async function POST(request: NextRequest) {
         { status: 401 },
       );
     }
+
+    // Ensure the Clerk user exists in our local DB before writing
+    // (satisfies the FK constraint on questionnaire_attempts.user_id)
+    await ensureUserExists(userId);
 
     await seedQuestionsIfMissing();
 
