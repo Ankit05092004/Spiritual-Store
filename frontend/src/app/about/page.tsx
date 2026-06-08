@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About Us | MahadevAstro",
+  title: "About Us | AstroSpiritual",
   description:
-    "Learn about MahadevAstro's mission to bridge Vedic wisdom with modern technology for accurate astrological guidance.",
+    "Learn about AstroSpiritual's mission to bridge Vedic wisdom with modern technology for accurate astrological guidance.",
 };
 
 const METRICS = [
@@ -34,7 +34,7 @@ export default function AboutPage() {
             <span className="text-primary">Vedic Wisdom</span>
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
-            MahadevAstro combines ancient Vedic astrology with modern
+            AstroSpiritual combines ancient Vedic astrology with modern
             technology to provide you with accurate, personalized insights for a
             harmonious life.
           </p>

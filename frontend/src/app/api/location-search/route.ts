@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         `${GEOCODING_API}?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
         {
           headers: {
-            "User-Agent": "MahadevAstro/1.0",
+            "User-Agent": "AstroSpiritual/1.0",
           },
           signal: controller.signal,
         },
