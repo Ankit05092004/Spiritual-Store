@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
         <div className="space-y-6">
           <h3 className="font-serif text-2xl font-bold text-primary">
-            MAHADEV ASTRO
+            ASTRO SPIRITUAL
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed">
             India&apos;s most trusted destination for authentic Vedic products.
@@ -158,7 +158,7 @@ export default function Footer() {
 
       <div className="max-w-7xl mx-auto pt-12 mt-12 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
         <p className="text-gray-500 text-sm">
-          © 2024 MahadevAstro. All sacred items are ethically sourced and lab
+          © 2024 AstroSpiritual. All sacred items are ethically sourced and lab
           certified.
         </p>
         <div className="flex items-center gap-4">

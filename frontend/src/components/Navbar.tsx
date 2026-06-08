@@ -141,7 +141,7 @@ export default function Navbar() {
               </span>
             </div>
             <span className="font-serif text-xl font-bold text-foreground tracking-tight hidden lg:block">
-              MAHADEV<span className="text-primary">ASTRO</span>
+              ASTRO<span className="text-primary">SPIRITUAL</span>
             </span>
           </Link>
 
@@ -343,7 +343,7 @@ export default function Navbar() {
                   </span>
                 </div>
                 <span className="font-serif text-lg font-bold text-foreground tracking-tight">
-                  MAHADEV<span className="text-primary">ASTRO</span>
+                  ASTRO<span className="text-primary">SPIRITUAL</span>
                 </span>
               </Link>
               <Button
@@ -501,7 +501,7 @@ export default function Navbar() {
               </SignedOut>
               <div className="text-center mt-6">
                 <p className="text-xs text-muted-foreground">
-                  © {new Date().getFullYear()} MahadevAstro.
+                  © {new Date().getFullYear()} AstroSpiritual.
                 </p>
                 <p className="text-[10px] text-muted-foreground/60 mt-1">
                   All rights reserved.

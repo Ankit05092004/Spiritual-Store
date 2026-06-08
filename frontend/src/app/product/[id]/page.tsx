@@ -432,7 +432,7 @@ export default function ProductDetail() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="space-y-4">
             <h3 className="font-serif text-xl font-bold text-primary">
-              MAHADEVASTRO
+              ASTROSPIRITUAL
             </h3>
             <p className="text-gray-400 text-sm leading-relaxed">
               Bringing ancient wisdom to the modern world through authentic
@@ -504,7 +504,7 @@ export default function ProductDetail() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto pt-12 mt-12 border-t border-white/10 text-center text-gray-500 text-xs">
-          © 2024 MahadevAstro. All sacred items are ethically sourced and lab
+          © 2024 AstroSpiritual. All sacred items are ethically sourced and lab
           certified.
         </div>
       </footer>

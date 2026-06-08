@@ -20,7 +20,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Mahadev Astro - Authentic Spiritual Products",
+  title: "Astro Spiritual - Authentic Spiritual Products",
   description:
     "India's most trusted destination for lab-certified gemstones, authentic Rudraksha, and sacred spiritual items.",
 };

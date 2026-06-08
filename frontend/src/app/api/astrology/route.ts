@@ -145,7 +145,7 @@ async function geocodeLocation(
       `${GEOCODING_API}?q=${encodeURIComponent(location)}&format=json&limit=1`,
       {
         headers: {
-          "User-Agent": "MahadevAstro/1.0",
+          "User-Agent": "AstroSpiritual/1.0",
         },
       },
     );

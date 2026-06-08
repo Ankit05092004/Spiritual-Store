@@ -67,7 +67,7 @@ export default function ContactPage() {
 
               <div className="shrink-0">
                 <a
-                  href="mailto:support@mahadevastro.com"
+                  href="mailto:support@astrospiritual.com"
                   className="inline-flex h-12 items-center justify-center rounded-full bg-white text-indigo-900 px-8 font-semibold transition-transform hover:scale-105"
                 >
                   <span className="material-symbols-outlined mr-2">mail</span>
@@ -104,10 +104,10 @@ export default function ContactPage() {
                 <div>
                   <h4 className="font-semibold mb-1">Email Us</h4>
                   <a
-                    href="mailto:support@mahadevastro.com"
+                    href="mailto:support@astrospiritual.com"
                     className="text-muted-foreground hover:text-primary transition-colors"
                   >
-                    support@mahadevastro.com
+                    support@astrospiritual.com
                   </a>
                 </div>
               </div>
